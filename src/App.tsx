@@ -1,0 +1,683 @@
+import React, { useState, useEffect } from 'react';
+import { Trip, Activity, PackingItem, UserPreferences, TravelCompanion, TravelMode, BudgetTier, ThemeId, ExpenseItem, SavedPlace } from './types';
+
+import { generateTripFromInputs, adaptTripPlan } from './services/aiPlanner';
+import { DEFAULT_THEME_ID, getTheme, applyThemeToDocument, getSavedThemeId } from './services/theme';
+
+// Subcomponents
+import { Navbar } from './components/Navbar';
+import { LandingPage } from './components/LandingPage';
+import { CreateTripWizard } from './components/CreateTripWizard';
+import { AIGenerationLoader } from './components/AIGenerationLoader';
+import { ItineraryView } from './components/ItineraryView';
+import { TripModeView } from './components/TripModeView';
+import { MyTripsView } from './components/MyTripsView';
+import { MapPlaceSearchView } from './components/MapPlaceSearchView';
+import { ActivityDetailsModal } from './components/ActivityDetailsModal';
+import { AdaptModal } from './components/AdaptModal';
+import { ThemeSelectorModal } from './components/ThemeSelectorModal';
+import { ReplaceActivityModal } from './components/ReplaceActivityModal';
+import { AlternativePlaceOption } from './services/alternativePlaces';
+import { ToastContainer, ToastMessage } from './components/Toast';
+import { SnowfallEffect } from './components/SnowfallAtmosphere';
+import { ThemeHeroBackdrop } from './components/ThemeHeroBackdrop';
+
+export default function App() {
+  // Theme state
+  const [themeId, setThemeId] = useState<ThemeId>(() => getSavedThemeId());
+  const [isThemeModalOpen, setIsThemeModalOpen] = useState<boolean>(false);
+
+  const currentTheme = getTheme(themeId);
+
+  useEffect(() => {
+    applyThemeToDocument(currentTheme);
+  }, [themeId]);
+
+  const handleSelectTheme = (newThemeId: ThemeId) => {
+    setThemeId(newThemeId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('roamai_theme_id', newThemeId);
+    }
+    const themeObj = getTheme(newThemeId);
+    addToast('ai', `${themeObj.name} Applied`, `${themeObj.name} is now active.`);
+  };
+
+  // Initial demo trips
+  const [trips, setTrips] = useState<Trip[]>([]);
+
+  const [activeTripId, setActiveTripId] = useState<string>('');
+  const [currentView, setCurrentView] = useState<'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search'>('landing');
+  const [wizardDestId, setWizardDestId] = useState<string>('');
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [generatingDestName, setGeneratingDestName] = useState<string>('Goa');
+  const [activeDayNumber, setActiveDayNumber] = useState<number>(1);
+
+  // Modals state
+  const [selectedActivityForModal, setSelectedActivityForModal] = useState<Activity | null>(null);
+  const [replacingActivity, setReplacingActivity] = useState<Activity | null>(null);
+  const [isAdaptModalOpen, setIsAdaptModalOpen] = useState<boolean>(false);
+
+  // Toast notifications
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const addToast = (type: ToastMessage['type'], title: string, message: string) => {
+    const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    setToasts((prev) => [...prev, { id, type, title, message }]);
+    setTimeout(() => {
+      dismissToast(id);
+    }, 4500);
+  };
+
+  const dismissToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const activeTrip = trips.find((t) => t.id === activeTripId) || trips[0];
+  const isUserCreatedTrip = activeTrip && !['trip-goa-001', 'trip-manali-002', 'trip-wayanad-003'].includes(activeTrip.id);
+  const recentPlannedTrip = trips.find((t) => !['trip-goa-001', 'trip-manali-002', 'trip-wayanad-003'].includes(t.id)) || (isUserCreatedTrip ? activeTrip : null);
+  const demoTrip = trips.find((t) => t.id === 'trip-goa-001') || trips[0];
+
+  // Open specific trip directly
+  const handleOpenTrip = (tripId: string) => {
+    setActiveTripId(tripId);
+    setActiveDayNumber(1);
+    setCurrentView('itinerary');
+  };
+
+  // Start planning from landing page
+  const handleStartPlanning = (destId: string = 'goa') => {
+    setWizardDestId(destId);
+    setCurrentView('wizard');
+  };
+
+  // Quick explore Goa demo
+  const handleExploreDemo = () => {
+    setActiveTripId('trip-goa-001');
+    setActiveDayNumber(1);
+    setCurrentView('itinerary');
+    addToast('ai', 'Demo Loaded', 'Viewing Goa 4-Day Friends Itinerary with real-time adaptive AI engine.');
+  };
+
+  // Preset loader from Navbar
+  const handleLoadPreset = (presetKey: 'goa' | 'manali' | 'wayanad') => {
+    if (presetKey === 'goa') {
+      setActiveTripId('trip-goa-001');
+      setActiveDayNumber(1);
+    } else if (presetKey === 'manali') {
+      setActiveTripId('trip-manali-002');
+      setActiveDayNumber(1);
+    } else if (presetKey === 'wayanad') {
+      setActiveTripId('trip-wayanad-003');
+      setActiveDayNumber(1);
+    }
+    setCurrentView('itinerary');
+    addToast('info', 'Switched Destination', `Loaded ${presetKey.toUpperCase()} personalized itinerary.`);
+  };
+
+  // Generate trip with AI
+  const handleGenerateTrip = async (params: {
+    destinationId: string;
+    destinationPlace?: {
+      placeId: string;
+      name: string;
+      address: string;
+      latitude: number;
+      longitude: number;
+      photoUrl?: string;
+    };
+    startCity?: string;
+    startDate: string;
+    endDate: string;
+    durationDays: number;
+    companionType: TravelCompanion;
+    travellersCount: number;
+    travelMode: TravelMode;
+    budgetTier: BudgetTier;
+    targetBudget: number;
+    preferences: UserPreferences;
+  }) => {
+    const destinationName = params.destinationPlace?.name || params.destinationId || 'Unknown Destination';
+    setGeneratingDestName(destinationName);
+    setIsGenerating(true);
+
+    try {
+      const generatedTrip = await generateTripFromInputs(params);
+
+      // Save newly generated trip
+      setTrips((prev) => [generatedTrip, ...prev]);
+      setActiveTripId(generatedTrip.id);
+      setActiveDayNumber(1);
+    } catch (error) {
+      console.error("AI Generation failed:", error);
+      setIsGenerating(false);
+      addToast('warning', 'Generation Failed', 'There was an issue planning your trip. Please try again.');
+    }
+  };
+
+  const handleGenerationComplete = () => {
+    setIsGenerating(false);
+    setCurrentView('itinerary');
+    addToast(
+      'ai',
+      'Itinerary Generated!',
+      `Personalized ${activeTrip.destination} trip created with smart packing lists and adaptive Trip Mode ready.`
+    );
+  };
+
+  // Adapt Trip Plan
+  const handleApplyAdaptation = (triggerId: string) => {
+    const { updatedTrip, summaryMessage, changedCount } = adaptTripPlan(
+      activeTrip,
+      triggerId,
+      activeDayNumber
+    );
+
+    setTrips((prev) => prev.map((t) => (t.id === updatedTrip.id ? updatedTrip : t)));
+    addToast('ai', 'Itinerary Adapted!', summaryMessage);
+  };
+
+  // Toggle activity complete
+  const handleToggleActivityComplete = (activityId: string) => {
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTripId) return t;
+        const newDays = t.days.map((d) => ({
+          ...d,
+          activities: d.activities.map((a) =>
+            a.id === activityId ? { ...a, completed: !a.completed } : a
+          )
+        }));
+        return { ...t, days: newDays };
+      })
+    );
+  };
+
+  // Open Replace Activity Modal
+  const handleReplaceActivity = (activityId: string) => {
+    let foundActivity: Activity | null = null;
+    for (const day of activeTrip.days) {
+      const act = day.activities.find((a) => a.id === activityId);
+      if (act) {
+        foundActivity = act;
+        break;
+      }
+    }
+
+    if (foundActivity) {
+      setReplacingActivity(foundActivity);
+    }
+  };
+
+  // Confirm alternative place selection
+  const handleConfirmReplaceActivity = (
+    oldActivityId: string,
+    chosenAlternative: AlternativePlaceOption
+  ) => {
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTripId) return t;
+        const newDays = t.days.map((d) => ({
+          ...d,
+          activities: d.activities.map((a) => {
+            if (a.id === oldActivityId) {
+              return {
+                ...a,
+                title: chosenAlternative.title,
+                category: chosenAlternative.category,
+                description: chosenAlternative.description,
+                imageUrl: chosenAlternative.imageUrl,
+                location: chosenAlternative.location,
+                estimatedCost: chosenAlternative.estimatedCost,
+                duration: chosenAlternative.duration,
+                rating: chosenAlternative.rating,
+                recommendationReason: chosenAlternative.recommendationReason,
+                isUpdated: true,
+                updatedReason: `✨ Swapped for ${chosenAlternative.badge || 'chosen alternative'}`
+              };
+            }
+            return a;
+          })
+        }));
+        return { ...t, days: newDays };
+      })
+    );
+
+    addToast('success', 'Place Swapped Successfully', `Updated to "${chosenAlternative.title}".`);
+  };
+
+  // Move activity up
+  const handleMoveActivityUp = (activityId: string) => {
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTripId) return t;
+        const newDays = t.days.map((d) => {
+          const idx = d.activities.findIndex((a) => a.id === activityId);
+          if (idx > 0) {
+            const newActs = [...d.activities];
+            const temp = newActs[idx];
+            newActs[idx] = newActs[idx - 1];
+            newActs[idx - 1] = temp;
+            return { ...d, activities: newActs };
+          }
+          return d;
+        });
+        return { ...t, days: newDays };
+      })
+    );
+  };
+
+  // Move activity down
+  const handleMoveActivityDown = (activityId: string) => {
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTripId) return t;
+        const newDays = t.days.map((d) => {
+          const idx = d.activities.findIndex((a) => a.id === activityId);
+          if (idx !== -1 && idx < d.activities.length - 1) {
+            const newActs = [...d.activities];
+            const temp = newActs[idx];
+            newActs[idx] = newActs[idx + 1];
+            newActs[idx + 1] = temp;
+            return { ...d, activities: newActs };
+          }
+          return d;
+        });
+        return { ...t, days: newDays };
+      })
+    );
+  };
+
+  // Remove activity
+  const handleRemoveActivity = (activityId: string) => {
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTripId) return t;
+        const newDays = t.days.map((d) => ({
+          ...d,
+          activities: d.activities.filter((a) => a.id !== activityId)
+        }));
+        return { ...t, days: newDays };
+      })
+    );
+    addToast('info', 'Stop Removed', 'Itinerary recalculated travel times.');
+  };
+
+  // Add custom activity
+  const handleAddCustomActivity = (dayNumber: number) => {
+    const newAct: Activity = {
+      id: `custom-act-${Date.now()}`,
+      time: '04:30 PM',
+      title: 'Spontaneous Sunset Viewpoint & Fresh Coconut Stand',
+      category: 'Sightseeing',
+      location: `${activeTrip.destination} Coastline`,
+      estimatedCost: 200,
+      travelTimeFromPrev: '10 min walk',
+      duration: '1 hr',
+      description: 'Relaxed cliffside ocean spot watching fishing trawlers return with golden hour colors.',
+      imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop',
+      recommendationReason: 'Added by traveller during trip customization.',
+      isIndoor: false,
+      isRainSafe: false
+    };
+
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTripId) return t;
+        const newDays = t.days.map((d) => {
+          if (d.dayNumber === dayNumber) {
+            return {
+              ...d,
+              activities: [...d.activities, newAct]
+            };
+          }
+          return d;
+        });
+        return { ...t, days: newDays };
+      })
+    );
+
+    addToast('success', 'Stop Added', 'New spot added to today’s schedule.');
+  };
+
+  // Toggle packing list item
+  const handleTogglePackingItem = (itemId: string) => {
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTripId) return t;
+        const newPacking = t.packingList.map((item) =>
+          item.id === itemId ? { ...item, checked: !item.checked } : item
+        );
+        return { ...t, packingList: newPacking };
+      })
+    );
+  };
+
+  // Add packing item
+  const handleAddPackingItem = (name: string, category: PackingItem['category']) => {
+    const newItem: PackingItem = {
+      id: `p-${Date.now()}`,
+      name,
+      category,
+      checked: false
+    };
+
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTripId) return t;
+        return { ...t, packingList: [...t.packingList, newItem] };
+      })
+    );
+
+    addToast('success', 'Item Added', `"${name}" added to packing checklist.`);
+  };
+
+  // Add Day Expense
+  const handleAddExpense = (expenseData: Omit<ExpenseItem, 'id' | 'createdAt'>) => {
+    const newExpense: ExpenseItem = {
+      ...expenseData,
+      id: `exp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      createdAt: new Date().toISOString()
+    };
+
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTripId) return t;
+        const existingExpenses = t.expenses || [];
+        return {
+          ...t,
+          expenses: [newExpense, ...existingExpenses]
+        };
+      })
+    );
+
+    const dayObj = activeTrip.days.find((d) => d.dayNumber === expenseData.dayNumber);
+    const dayEst = dayObj ? dayObj.activities.reduce((acc, a) => acc + a.estimatedCost, 0) : 0;
+    const currentDayExpenses = (activeTrip.expenses || []).filter((e) => e.dayNumber === expenseData.dayNumber);
+    const newTotal = currentDayExpenses.reduce((acc, e) => acc + e.amount, 0) + expenseData.amount;
+    const isUnder = dayEst >= newTotal;
+
+    addToast(
+      'success',
+      'Expense Logged',
+      `Recorded ${activeTrip.currency}${expenseData.amount.toLocaleString()} for Day ${expenseData.dayNumber}. ${
+        dayEst > 0
+          ? isUnder
+            ? `Day savings: ${activeTrip.currency}${(dayEst - newTotal).toLocaleString()} remaining.`
+            : `Exceeding day estimate by ${activeTrip.currency}${(newTotal - dayEst).toLocaleString()}.`
+          : ''
+      }`
+    );
+  };
+
+  // Delete Day Expense
+  const handleDeleteExpense = (expenseId: string) => {
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTripId) return t;
+        return {
+          ...t,
+          expenses: (t.expenses || []).filter((e) => e.id !== expenseId)
+        };
+      })
+    );
+    addToast('info', 'Expense Removed', 'Expense entry removed from day tracker.');
+  };
+
+  // Delete trip from My Trips
+  const handleDeleteTrip = (tripId: string) => {
+    if (trips.length <= 1) return;
+    setTrips((prev) => prev.filter((t) => t.id !== tripId));
+    if (activeTripId === tripId) {
+      const remaining = trips.filter((t) => t.id !== tripId);
+      setActiveTripId(remaining[0]?.id || 'trip-goa-001');
+    }
+    addToast('info', 'Trip Removed', 'Trip deleted from your account.');
+  };
+
+  // Add Searched Place directly to current active day itinerary
+  const handleAddPlaceToTrip = (place: SavedPlace) => {
+    if (!activeTrip) return;
+
+    const newActivity: Activity = {
+      id: `act-search-${Date.now()}`,
+      time: '04:30 PM',
+      title: place.name,
+      location: place.address,
+      coordinates: { lat: place.latitude, lng: place.longitude },
+      description: `Discovered and added via Google Places Live Search: ${place.name}. Located at ${place.address}.`,
+      duration: '1.5 hours',
+      category: (['Food', 'Sightseeing', 'Adventure', 'Relaxation', 'Culture', 'Nightlife', 'Shopping', 'Transit'].includes(place.category || '')
+        ? place.category
+        : 'Sightseeing') as any,
+      estimatedCost: 0,
+      imageUrl: place.photoUrl || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
+      rating: place.rating || 4.5,
+      recommendationReason: 'Added from Google Places Search. Coordinates saved for direct GPS navigation.',
+      tips: 'Exact location saved with latitude & longitude. Tap to view directions or log expenses.',
+      travelTimeFromPrev: '15 min drive'
+    };
+
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTripId) return t;
+        return {
+          ...t,
+          days: t.days.map((d) => {
+            if (d.dayNumber !== activeDayNumber) return d;
+            return {
+              ...d,
+              activities: [...d.activities, newActivity]
+            };
+          })
+        };
+      })
+    );
+
+    addToast(
+      'success',
+      'Place Added to Itinerary',
+      `"${place.name}" added to Day ${activeDayNumber} of ${activeTrip.destination}.`
+    );
+  };
+
+  return (
+    <div 
+      className="min-h-screen font-sans antialiased text-slate-900 flex flex-col transition-colors duration-300 relative"
+      style={{ backgroundColor: currentTheme.canvasBg }}
+    >
+      {/* Full-Page Dynamic Photographic Scenic Backdrop across Discover, My Trips, Itinerary, etc. */}
+      <ThemeHeroBackdrop currentTheme={currentTheme} isDark={false} />
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+      {/* Global Ambient Snowfall when Snow Theme is active */}
+      {themeId === 'snow' && (
+        <SnowfallEffect fullScreen={true} density="gentle" />
+      )}
+
+      {/* Full AI Generation Loading Screen */}
+      {isGenerating && (
+        <AIGenerationLoader
+          destinationName={generatingDestName}
+          onComplete={handleGenerationComplete}
+        />
+      )}
+
+      {/* Main App Layout */}
+      {!isGenerating && (
+        <>
+          {/* Top Global Navigation */}
+          {currentView !== 'trip_mode' && (
+            <Navbar
+              currentView={currentView}
+              onNavigate={(view) => setCurrentView(view)}
+              activeTrip={activeTrip}
+              savedTripsCount={trips.length}
+              onLoadPreset={handleLoadPreset}
+              currentTheme={currentTheme}
+              onOpenThemeModal={() => setIsThemeModalOpen(true)}
+            />
+          )}
+
+          {/* Body Views */}
+          <main className="flex-1">
+            {/* VIEW 1: LANDING PAGE */}
+            {currentView === 'landing' && (
+              <LandingPage
+                currentTheme={currentTheme}
+                recentTrip={recentPlannedTrip}
+                demoTrip={demoTrip}
+                onOpenTrip={handleOpenTrip}
+                onStartPlanning={handleStartPlanning}
+                onExploreDemo={handleExploreDemo}
+                onOpenThemeModal={() => setIsThemeModalOpen(true)}
+                onOpenMapSearch={() => setCurrentView('map_search')}
+              />
+            )}
+
+            {/* VIEW 2: CREATE TRIP WIZARD */}
+            {currentView === 'wizard' && (
+              <CreateTripWizard
+                initialDestinationId={wizardDestId}
+                onGenerateTrip={handleGenerateTrip}
+                onCancel={() => setCurrentView('landing')}
+              />
+            )}
+
+            {/* VIEW 3: PERSONALIZED ITINERARY DASHBOARD */}
+            {currentView === 'itinerary' && activeTrip && (
+              <div className="px-4 sm:px-6 lg:px-8 pt-6">
+                <ItineraryView
+                  trip={activeTrip}
+                  activeDayNumber={activeDayNumber}
+                  onSelectDay={(dayNum) => setActiveDayNumber(dayNum)}
+                  onOpenAdapt={() => setIsAdaptModalOpen(true)}
+                  onEnterTripMode={() => setCurrentView('trip_mode')}
+                  onOpenActivityDetails={(act) => setSelectedActivityForModal(act)}
+                  onReplaceActivity={handleReplaceActivity}
+                  onMoveActivityUp={handleMoveActivityUp}
+                  onMoveActivityDown={handleMoveActivityDown}
+                  onRemoveActivity={handleRemoveActivity}
+                  onToggleActivityComplete={handleToggleActivityComplete}
+                  onAddCustomActivity={handleAddCustomActivity}
+                  onTogglePackingItem={handleTogglePackingItem}
+                  onAddPackingItem={handleAddPackingItem}
+                  onAddExpense={handleAddExpense}
+                  onDeleteExpense={handleDeleteExpense}
+                  onOpenMapSearch={() => setCurrentView('map_search')}
+                />
+              </div>
+            )}
+
+            {/* VIEW 4: TRIP MODE (LIVE ADAPTIVE COMPANION) */}
+            {currentView === 'trip_mode' && activeTrip && (
+              <TripModeView
+                trip={activeTrip}
+                activeDayNumber={activeDayNumber}
+                onSelectDay={(dayNum) => setActiveDayNumber(dayNum)}
+                onOpenAdapt={() => setIsAdaptModalOpen(true)}
+                onOpenActivityDetails={(act) => setSelectedActivityForModal(act)}
+                onReplaceActivity={handleReplaceActivity}
+                onToggleActivityCompleted={handleToggleActivityComplete}
+                onAddExpense={handleAddExpense}
+                onDeleteExpense={handleDeleteExpense}
+                onExitTripMode={() => setCurrentView('itinerary')}
+              />
+            )}
+
+            {/* VIEW 5: MY TRIPS */}
+            {currentView === 'my_trips' && (
+              <div className="px-4 sm:px-6 lg:px-8 pt-8 pb-16">
+                <MyTripsView
+                  trips={trips}
+                  activeTripId={activeTripId}
+                  onSelectTrip={(tripId) => {
+                    setActiveTripId(tripId);
+                    setActiveDayNumber(1);
+                    setCurrentView('itinerary');
+                  }}
+                  onEnterTripMode={(trip) => {
+                    setActiveTripId(trip.id);
+                    setActiveDayNumber(1);
+                    setCurrentView('trip_mode');
+                  }}
+                  onPlanNewTrip={() => handleStartPlanning()}
+                  onDeleteTrip={handleDeleteTrip}
+                />
+              </div>
+            )}
+
+            {/* VIEW 6: GOOGLE PLACES & MAP SEARCH */}
+            {currentView === 'map_search' && (
+              <div className="px-4 sm:px-6 lg:px-8 pt-6 pb-16">
+                <MapPlaceSearchView
+                  activeTrip={activeTrip}
+                  onAddPlaceToTrip={handleAddPlaceToTrip}
+                />
+              </div>
+            )}
+          </main>
+
+          {/* Activity Details Modal */}
+          {selectedActivityForModal && (
+            <ActivityDetailsModal
+              activity={selectedActivityForModal}
+              currency={activeTrip.currency}
+              onClose={() => setSelectedActivityForModal(null)}
+              onReplace={handleReplaceActivity}
+              onStartNav={(act) => {
+                addToast('info', 'Navigation Started', `Heading to ${act.title}. GPS routing enabled.`);
+              }}
+              onLogExpense={(act) => {
+                let mappedCat: any = 'Other';
+                if (['Food', 'Sightseeing', 'Adventure', 'Relaxation', 'Culture', 'Nightlife', 'Shopping', 'Transit'].includes(act.category)) {
+                  mappedCat = act.category;
+                }
+                handleAddExpense({
+                  dayNumber: activeDayNumber,
+                  title: act.title,
+                  amount: act.estimatedCost,
+                  category: mappedCat,
+                  time: act.time,
+                  paidBy: 'Me',
+                  activityId: act.id,
+                  notes: `Logged for ${act.location}`
+                });
+              }}
+            />
+          )}
+
+          {/* Adapt Plan Modal */}
+          <AdaptModal
+            isOpen={isAdaptModalOpen}
+            onClose={() => setIsAdaptModalOpen(false)}
+            onApplyAdaptation={handleApplyAdaptation}
+            activeDayNumber={activeDayNumber}
+          />
+
+          {/* Theme Selector Modal */}
+          <ThemeSelectorModal
+            isOpen={isThemeModalOpen}
+            onClose={() => setIsThemeModalOpen(false)}
+            currentTheme={currentTheme}
+            onSelectTheme={handleSelectTheme}
+          />
+
+          {/* Interactive Replace Place Modal */}
+          {replacingActivity && (
+            <ReplaceActivityModal
+              isOpen={Boolean(replacingActivity)}
+              activity={replacingActivity}
+              destination={activeTrip.destination}
+              currency={activeTrip.currency}
+              userStyles={activeTrip.preferences.styles}
+              onClose={() => setReplacingActivity(null)}
+              onConfirmReplace={handleConfirmReplaceActivity}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
