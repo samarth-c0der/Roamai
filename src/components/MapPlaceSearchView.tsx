@@ -91,21 +91,13 @@ const MapPlaceSearchViewInner: React.FC<MapPlaceSearchViewProps> = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
 
   // Selected Place state (Replaces previous marker)
-  const [selectedPlace, setSelectedPlace] = useState<PlaceSearchResult | null>({
-    placeId: 'default-goa-beach',
-    name: 'Anjuna Beach Coastline',
-    address: 'Anjuna, North Goa, Goa 403509, India',
-    latitude: 15.5800,
-    longitude: 73.7421,
-    rating: 4.6,
-    types: ['natural_feature', 'tourist_attraction', 'point_of_interest']
-  });
+  const [selectedPlace, setSelectedPlace] = useState<PlaceSearchResult | null>(null);
 
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({
-    lat: 15.5800,
-    lng: 73.7421
+    lat: 20.5937,
+    lng: 78.9629
   });
-  const [mapZoom, setMapZoom] = useState<number>(15);
+  const [mapZoom, setMapZoom] = useState<number>(5);
   const [mapTypeId, setMapTypeId] = useState<string>('roadmap');
 
   // User Geolocation State

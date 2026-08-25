@@ -67,16 +67,25 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'itinerary' | 'map' | 'preparation' | 'group' | 'bookings'>('itinerary');
 
-  const currentDay = trip.days.find(d => d.dayNumber === activeDayNumber) || trip.days[0];
+  const days = trip?.days || [];
+  const currentDay = days.find(d => d.dayNumber === activeDayNumber) || days[0] || {
+    dayNumber: 1,
+    date: 'Day 1',
+    theme: `${trip?.destination || 'Destination'} Highlights`,
+    vibe: 'Scenic landmarks & culture',
+    weatherForecast: { temp: '26°C', condition: 'Sunny', icon: 'Sun', rainChance: 10 },
+    activities: []
+  };
 
   // Budget calculations
-  const totalActivitiesCost = trip.days.reduce(
-    (acc, day) => acc + day.activities.reduce((dAcc, a) => dAcc + a.estimatedCost, 0),
+  const totalActivitiesCost = days.reduce(
+    (acc, day) => acc + (day.activities || []).reduce((dAcc, a) => dAcc + (a.estimatedCost || 0), 0),
     0
   );
-  const totalBookingsCost = trip.bookings.reduce((acc, b) => acc + b.estimatedCost, 0);
+  const totalBookingsCost = (trip?.bookings || []).reduce((acc, b) => acc + (b.estimatedCost || 0), 0);
   const totalEstimatedCost = totalActivitiesCost + totalBookingsCost;
-  const remainingBudget = Math.max(0, trip.targetBudget - totalEstimatedCost);
+  const targetBudget = trip?.targetBudget || 25000;
+  const remainingBudget = Math.max(0, targetBudget - totalEstimatedCost);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16 text-left">
@@ -246,7 +255,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
           {/* Day Selector Pills Bar */}
           <div className="bg-white/85 dark:bg-slate-900/85 backdrop-blur-2xl rounded-3xl p-4 sm:p-5 shadow-xl border border-white/80 dark:border-white/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-              {trip.days.map((day) => (
+              {days.map((day) => (
                 <button
                   key={day.dayNumber}
                   onClick={() => onSelectDay(day.dayNumber)}
@@ -257,7 +266,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                   }`}
                 >
                   <span>Day {day.dayNumber}</span>
-                  <span className="text-[10px] opacity-80">{day.weatherForecast.temp}</span>
+                  <span className="text-[10px] opacity-80">{day.weatherForecast?.temp || '26°C'}</span>
                 </button>
               ))}
             </div>
@@ -268,11 +277,11 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                 className="px-3.5 py-2 rounded-xl bg-teal-50/90 hover:bg-teal-100 text-teal-900 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-teal-200 shadow-xs"
               >
                 <Zap className="w-3.5 h-3.5 text-teal-600" />
-                <span>Adapt Day {currentDay.dayNumber}</span>
+                <span>Adapt Day {currentDay?.dayNumber || 1}</span>
               </button>
 
               <button
-                onClick={() => onAddCustomActivity(currentDay.dayNumber)}
+                onClick={() => onAddCustomActivity(currentDay?.dayNumber || 1)}
                 className="px-3.5 py-2 rounded-xl bg-white/80 hover:bg-white text-slate-800 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-slate-200 shadow-xs"
               >
                 <Plus className="w-3.5 h-3.5 text-slate-600" />
@@ -285,21 +294,21 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
           <div className="bg-gradient-to-r from-emerald-500/15 via-teal-500/15 to-cyan-500/15 backdrop-blur-2xl rounded-2xl p-4 sm:p-5 border border-white/60 dark:border-white/10 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-                {currentDay.date}
+                {currentDay?.date || 'Day 1'}
               </span>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
-                {currentDay.theme}
+                {currentDay?.theme || 'Day Highlights'}
               </h3>
               <p className="text-xs text-slate-700 dark:text-slate-300 mt-1">
-                <strong>Today's Vibe:</strong> {currentDay.vibe}
+                <strong>Today's Vibe:</strong> {currentDay?.vibe || 'Explore authentic highlights and culture'}
               </p>
             </div>
 
             <div className="flex items-center gap-3 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md px-3.5 py-2 rounded-xl border border-emerald-200/60 shrink-0 shadow-xs">
               <Sun className="w-4 h-4 text-amber-500" />
               <div className="text-right">
-                <span className="text-xs font-bold text-slate-900 dark:text-white block">{currentDay.weatherForecast.temp}</span>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400">{currentDay.weatherForecast.condition}</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-white block">{currentDay?.weatherForecast?.temp || '26°C'}</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400">{currentDay?.weatherForecast?.condition || 'Sunny'}</span>
               </div>
             </div>
           </div>
@@ -314,23 +323,23 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                   style={{ textShadow: '0 2px 8px rgba(0,0,0,0.65)' }}
                 >
                   <Calendar className="w-4 h-4 text-emerald-400" />
-                  <span>Day {currentDay.dayNumber} Timeline & Stops</span>
+                  <span>Day {currentDay?.dayNumber || 1} Timeline & Stops</span>
                 </h4>
                 <span 
                   className="text-xs font-semibold text-white/90"
                   style={{ textShadow: '0 2px 8px rgba(0,0,0,0.65)' }}
                 >
-                  {currentDay.activities.length} planned stops
+                  {(currentDay?.activities || []).length} planned stops
                 </span>
               </div>
 
-              {currentDay.activities.map((activity, index) => (
+              {(currentDay?.activities || []).map((activity, index) => (
                 <ActivityCard
                   key={activity.id}
                   activity={activity}
-                  currency={trip.currency}
+                  currency={trip?.currency || 'INR'}
                   isFirst={index === 0}
-                  isLast={index === currentDay.activities.length - 1}
+                  isLast={index === (currentDay?.activities || []).length - 1}
                   onOpenDetails={onOpenActivityDetails}
                   onReplace={onReplaceActivity}
                   onMoveUp={onMoveActivityUp}
@@ -497,7 +506,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
               Day by Day Highlights
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {trip.days.map((day) => (
+              {days.map((day) => (
                 <div
                   key={day.dayNumber}
                   onClick={() => {
@@ -510,7 +519,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                     <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-900 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-bold">
                       Day {day.dayNumber}
                     </span>
-                    <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">{day.weatherForecast.temp} ☀️</span>
+                    <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">{day.weatherForecast?.temp || '26°C'} ☀️</span>
                   </div>
 
                   <h4 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
@@ -519,7 +528,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                   <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">{day.vibe}</p>
 
                   <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-400 font-semibold">
-                    <span>{day.activities.length} planned stops</span>
+                    <span>{(day.activities || []).length} planned stops</span>
                     <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                   </div>
                 </div>

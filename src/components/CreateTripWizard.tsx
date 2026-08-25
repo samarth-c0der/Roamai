@@ -27,11 +27,6 @@ import {
   CheckCircle2,
   MapPinned
 } from 'lucide-react';
-// Dummy fallback for now to fix build
-const POPULAR_DESTINATIONS: any[] = [{ id: 'mock', name: 'Mock' }];
-const POPULAR_ORIGIN_CITIES: any[] = [];
-const getRouteDetails = (a: any, b: any, c: any) => ({ distanceKm: 0, routeTitle: '', keyHighwayOrTrain: '', recommendedMode: 'Flight', flightDuration: '0', trainDuration: '0', driveDuration: '0' });
-
 import {
   TravelStyle,
   TravelPace,
@@ -72,13 +67,13 @@ export const TRAVEL_MODES: {
   desc: string;
   tag: string;
 }[] = [
-  { id: 'Flight', label: 'Flight', icon: '✈️', desc: 'Fastest air transit & airport transfers', tag: 'Fast & Direct' },
-  { id: 'Train', label: 'Train / Railway', icon: '🚆', desc: 'Scenic rail routes & sleeper/express berths', tag: 'Scenic Comfort' },
-  { id: 'Car / Road Trip', label: 'Car / Road Trip', icon: '🚗', desc: 'Highway drive with pitstops & total freedom', tag: 'High Flexibility' },
-  { id: 'Bus', label: 'Bus / Sleeper Coach', icon: '🚌', desc: 'Overnight Volvo AC & sleeper intercity', tag: 'Budget Friendly' },
-  { id: 'Bike / Motorcycle', label: 'Bike / Motorcycle', icon: '🏍️', desc: 'Thrilling open-road highway & mountain passes', tag: 'Adventure Ride' },
-  { id: 'Self-Drive Rental', label: 'Self-Drive / Rental', icon: '🚙', desc: 'Rental car or hired SUV at destination', tag: 'Local Freedom' }
-];
+    { id: 'Flight', label: 'Flight', icon: '✈️', desc: 'Fastest air transit & airport transfers', tag: 'Fast & Direct' },
+    { id: 'Train', label: 'Train / Railway', icon: '🚆', desc: 'Scenic rail routes & sleeper/express berths', tag: 'Scenic Comfort' },
+    { id: 'Car / Road Trip', label: 'Car / Road Trip', icon: '🚗', desc: 'Highway drive with pitstops & total freedom', tag: 'High Flexibility' },
+    { id: 'Bus', label: 'Bus / Sleeper Coach', icon: '🚌', desc: 'Overnight Volvo AC & sleeper intercity', tag: 'Budget Friendly' },
+    { id: 'Bike / Motorcycle', label: 'Bike / Motorcycle', icon: '🏍️', desc: 'Thrilling open-road highway & mountain passes', tag: 'Adventure Ride' },
+    { id: 'Self-Drive Rental', label: 'Self-Drive / Rental', icon: '🚙', desc: 'Rental car or hired SUV at destination', tag: 'Local Freedom' }
+  ];
 
 const TRAVEL_STYLES: { id: TravelStyle; label: string; icon: string; desc: string }[] = [
   { id: 'Adventure', label: 'Adventure', icon: '🧗', desc: 'Trekking, watersports & adrenaline' },
@@ -250,7 +245,7 @@ export const calculateTierBudget = (
 };
 
 export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
-  initialDestinationId = 'goa',
+  initialDestinationId = '',
   onGenerateTrip,
   onCancel
 }) => {
@@ -262,7 +257,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
   const [selectedDestId, setSelectedDestId] = useState<string>(initialDestinationId);
 
   // Step 2: Starting Point / Departure Location & Geolocation
-  const [startCity, setStartCity] = useState<string>('Bangalore');
+  const [startCity, setStartCity] = useState<string>('');
   const [customStartCity, setCustomStartCity] = useState<string>('');
   const [isCustomCityInput, setIsCustomCityInput] = useState<boolean>(false);
   const [originSearch, setOriginSearch] = useState<string>('');
@@ -287,9 +282,9 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
   const [companionType, setCompanionType] = useState<TravelCompanion>('Friends');
   const [travellersCount, setTravellersCount] = useState<number>(3);
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([
-    { id: 'm1', name: 'Rohan', styles: ['Adventure', 'Photography'], food: 'Non-vegetarian' },
-    { id: 'm2', name: 'Kabir', styles: ['Food', 'Nightlife'], food: 'Non-vegetarian' },
-    { id: 'm3', name: 'Tara', styles: ['Nature', 'Relaxation'], food: 'Vegetarian' }
+    { id: 'm1', name: 'Traveller 1', styles: ['Adventure', 'Culture'], food: 'No preference' },
+    { id: 'm2', name: 'Traveller 2', styles: ['Food', 'Nature'], food: 'No preference' },
+    { id: 'm3', name: 'Traveller 3', styles: ['Relaxation', 'Hidden gems'], food: 'No preference' }
   ]);
 
   // Step 5: Budget
@@ -307,22 +302,15 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
   // Dynamically resolved destination preset for downstream logistics & AI calculation
   const selectedDestination: DestinationPreset = useMemo(() => {
     if (selectedDestinationPlace) {
-      const matchedPreset = POPULAR_DESTINATIONS.find(
-        (d) =>
-          d.id === selectedDestinationPlace.placeId ||
-          d.name.toLowerCase() === selectedDestinationPlace.name.toLowerCase()
-      );
-      if (matchedPreset) return matchedPreset;
-
       return {
         id: selectedDestinationPlace.placeId,
         name: selectedDestinationPlace.name,
-        tagline: `Curated journey to ${selectedDestinationPlace.name}`,
+        tagline: `Journey to ${selectedDestinationPlace.name}`,
         region: selectedDestinationPlace.address.split(',')[0] || selectedDestinationPlace.name,
         country: selectedDestinationPlace.address.includes('India') ? 'India' : 'International',
         heroImage:
           selectedDestinationPlace.photoUrl ||
-          'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80',
+          'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
         gallery: [],
         climate: 'Pleasant & Moderate',
         avgCostPerDay: 7000,
@@ -331,20 +319,33 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
         shortDescription: selectedDestinationPlace.address
       };
     }
-    return POPULAR_DESTINATIONS.find((d) => d.id === selectedDestId) || POPULAR_DESTINATIONS[0];
-  }, [selectedDestinationPlace, selectedDestId]);
+    return {
+      id: 'custom-destination',
+      name: 'Selected Destination',
+      tagline: 'Your Personalized Journey',
+      region: 'Explore',
+      country: 'Global',
+      heroImage: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
+      gallery: [],
+      climate: 'Pleasant',
+      avgCostPerDay: 7000,
+      bestMonths: 'Year-round',
+      popularFor: ['Culture', 'Food', 'Nature', 'Sightseeing'],
+      shortDescription: 'Search any destination with Google Maps'
+    };
+  }, [selectedDestinationPlace]);
 
   // Effective Start City & Route Calculation
-  const effectiveStartCity = isCustomCityInput && customStartCity.trim() ? customStartCity.trim() : startCity;
-  const currentRouteDetails = getRouteDetails(effectiveStartCity, selectedDestination.id, selectedDestination.name);
-
-  // Origin cities filter
-  const filteredOriginCities = POPULAR_ORIGIN_CITIES.filter(
-    (c) =>
-      c.name.toLowerCase().includes(originSearch.toLowerCase()) ||
-      c.state.toLowerCase().includes(originSearch.toLowerCase()) ||
-      c.airportCode.toLowerCase().includes(originSearch.toLowerCase())
-  );
+  const effectiveStartCity = isCustomCityInput && customStartCity.trim() ? customStartCity.trim() : (startCity || 'Origin City');
+  const currentRouteDetails = useMemo(() => ({
+    distanceKm: 600,
+    routeTitle: `${effectiveStartCity} to ${selectedDestination.name}`,
+    keyHighwayOrTrain: 'Direct Transit Corridor',
+    recommendedMode: travelMode,
+    flightDuration: '2h',
+    trainDuration: '8h',
+    driveDuration: '10h'
+  }), [effectiveStartCity, selectedDestination.name, travelMode]);
 
   // Browser Geolocation Detector
   const handleDetectLocation = () => {
@@ -445,9 +446,16 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
       setCurrentStep(currentStep + 1);
     } else {
       // Trigger AI Generation
+      const targetDestName = selectedDestinationPlace?.name || selectedDestination.name || selectedDestId;
       onGenerateTrip({
-        destinationId: selectedDestination.id,
-        destinationPlace: selectedDestinationPlace || undefined,
+        destinationId: targetDestName,
+        destinationPlace: selectedDestinationPlace || {
+          placeId: `custom-dest-${Date.now()}`,
+          name: targetDestName,
+          address: selectedDestination.region || targetDestName,
+          latitude: 11.4102,
+          longitude: 76.6950
+        },
         startCity: effectiveStartCity,
         startDate,
         endDate,
@@ -558,11 +566,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                 type="button"
                 onClick={handleNext}
                 disabled={currentStep === 1 && !selectedDestinationPlace}
-                className={`hidden sm:flex items-center gap-1.5 px-4 py-1.5 rounded-xl font-bold text-xs shadow-sm transition-all ${
-                  currentStep === 1 && !selectedDestinationPlace
+                className={`hidden sm:flex items-center gap-1.5 px-4 py-1.5 rounded-xl font-bold text-xs shadow-sm transition-all ${currentStep === 1 && !selectedDestinationPlace
                     ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed opacity-60'
                     : 'bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-105 cursor-pointer'
-                }`}
+                  }`}
               >
                 <span>{currentStep === totalSteps ? 'Generate AI Itinerary' : 'Continue →'}</span>
                 {currentStep === totalSteps ? (
@@ -842,7 +849,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                           </button>
                         </div>
                       </div>
-                      
+
                       {/* Simple Origin City Input */}
                       <div className="mt-2">
                         <label className="text-xs font-bold text-slate-700 block mb-2">
@@ -892,11 +899,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                             setDurationDays(opt.days);
                             setEndDate(getCalculatedEndDate(startDate, opt.days));
                           }}
-                          className={`wizard-option-btn py-3.5 px-4 rounded-2xl border-2 text-center transition-all ${
-                            isSelected
+                          className={`wizard-option-btn py-3.5 px-4 rounded-2xl border-2 text-center transition-all ${isSelected
                               ? 'is-selected border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-xs'
                               : 'border-slate-200 text-slate-700 hover:border-slate-300 font-medium'
-                          }`}
+                            }`}
                         >
                           <span className="text-lg block font-extrabold">{opt.label}</span>
                           <span className="text-[11px] text-slate-500">{opt.sub}</span>
@@ -990,19 +996,17 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                           type="button"
                           id={`travel-mode-${mode.id.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
                           onClick={() => setTravelMode(mode.id)}
-                          className={`wizard-option-btn p-3.5 rounded-2xl border-2 text-left transition-all relative flex flex-col justify-between cursor-pointer ${
-                            isSelected
+                          className={`wizard-option-btn p-3.5 rounded-2xl border-2 text-left transition-all relative flex flex-col justify-between cursor-pointer ${isSelected
                               ? 'is-selected border-emerald-600 bg-emerald-50/80 text-emerald-950 font-bold shadow-xs ring-2 ring-emerald-500/20'
                               : 'border-slate-200 text-slate-700 hover:border-slate-300 bg-white font-medium'
-                          }`}
+                            }`}
                         >
                           <div>
                             <div className="flex items-center justify-between mb-1.5">
                               <span className="text-2xl">{mode.icon}</span>
                               <span
-                                className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md ${
-                                  isSelected ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-100 text-slate-600'
-                                }`}
+                                className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md ${isSelected ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-100 text-slate-600'
+                                  }`}
                               >
                                 {mode.tag}
                               </span>
@@ -1055,11 +1059,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                           else if (comp === 'Couple') setTravellersCount(2);
                           else if (comp === 'Friends' && travellersCount < 3) setTravellersCount(3);
                         }}
-                        className={`wizard-option-btn p-3.5 rounded-2xl border-2 text-center transition-all ${
-                          companionType === comp
+                        className={`wizard-option-btn p-3.5 rounded-2xl border-2 text-center transition-all ${companionType === comp
                             ? 'is-selected border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-xs'
                             : 'border-slate-200 text-slate-700 hover:border-slate-300 font-medium'
-                        }`}
+                          }`}
                       >
                         <span className="text-xl block mb-1">
                           {comp === 'Solo' && '🎒'}
@@ -1192,11 +1195,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                                 setTravelMode(m.id);
                                 setCustomBudget(modeCost);
                               }}
-                              className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                                isCurrent
+                              className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${isCurrent
                                   ? 'bg-emerald-700 text-white shadow-xs'
                                   : 'bg-white/80 hover:bg-white text-slate-700 border border-emerald-200/80 hover:border-emerald-300'
-                              }`}
+                                }`}
                             >
                               <span>{m.icon}</span>
                               <span>{m.label}</span>
@@ -1239,11 +1241,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                               setBudgetTier(b.tier);
                               setCustomBudget(tierAmount);
                             }}
-                            className={`wizard-option-btn p-4 rounded-2xl border-2 text-left transition-all flex flex-col justify-between ${
-                              isSelected
+                            className={`wizard-option-btn p-4 rounded-2xl border-2 text-left transition-all flex flex-col justify-between ${isSelected
                                 ? 'is-selected border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-xs'
                                 : 'border-slate-200 text-slate-700 hover:border-slate-300 font-medium'
-                            }`}
+                              }`}
                           >
                             <div>
                               <div className="flex items-center justify-between mb-1">
@@ -1416,11 +1417,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                             key={style.id}
                             type="button"
                             onClick={() => toggleStyle(style.id)}
-                            className={`wizard-option-btn p-3 rounded-2xl border text-left transition-all flex items-start gap-2.5 cursor-pointer ${
-                              isSelected
+                            className={`wizard-option-btn p-3 rounded-2xl border text-left transition-all flex items-start gap-2.5 cursor-pointer ${isSelected
                                 ? 'is-selected border-emerald-600 bg-emerald-50/90 text-emerald-950 font-bold shadow-xs ring-1 ring-emerald-500/20'
                                 : 'border-slate-200 text-slate-700 hover:border-slate-300 bg-white font-medium hover:bg-slate-50/50'
-                            }`}
+                              }`}
                           >
                             <span className="text-lg shrink-0 mt-0.5">{style.icon}</span>
                             <div className="min-w-0 flex-1">
@@ -1464,11 +1464,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                               key={pace}
                               type="button"
                               onClick={() => togglePace(pace)}
-                              className={`wizard-option-btn py-2.5 px-3 rounded-xl border text-center text-xs transition-all cursor-pointer whitespace-normal ${
-                                isSelected
+                              className={`wizard-option-btn py-2.5 px-3 rounded-xl border text-center text-xs transition-all cursor-pointer whitespace-normal ${isSelected
                                   ? 'is-selected border-emerald-600 bg-emerald-50 text-emerald-950 font-bold ring-1 ring-emerald-500/20'
                                   : 'border-slate-200 text-slate-700 hover:border-slate-300 bg-white font-medium'
-                              }`}
+                                }`}
                             >
                               {pace}
                             </button>
@@ -1502,11 +1501,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                                 key={food}
                                 type="button"
                                 onClick={() => toggleFood(food)}
-                                className={`wizard-option-btn py-2.5 px-3 rounded-xl border text-center text-xs transition-all cursor-pointer whitespace-normal break-words flex items-center justify-center min-h-[42px] ${
-                                  isSelected
+                                className={`wizard-option-btn py-2.5 px-3 rounded-xl border text-center text-xs transition-all cursor-pointer whitespace-normal break-words flex items-center justify-center min-h-[42px] ${isSelected
                                     ? 'is-selected border-emerald-600 bg-emerald-50 text-emerald-950 font-bold ring-1 ring-emerald-500/20'
                                     : 'border-slate-200 text-slate-700 hover:border-slate-300 bg-white font-medium'
-                                }`}
+                                  }`}
                               >
                                 <span className="leading-snug text-center">{food}</span>
                               </button>
@@ -1541,11 +1539,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                             key={alc}
                             type="button"
                             onClick={() => toggleAlcohol(alc)}
-                            className={`wizard-option-btn py-2.5 px-4 rounded-xl border text-center text-xs transition-all cursor-pointer whitespace-normal ${
-                              isSelected
+                            className={`wizard-option-btn py-2.5 px-4 rounded-xl border text-center text-xs transition-all cursor-pointer whitespace-normal ${isSelected
                                 ? 'is-selected border-emerald-600 bg-emerald-50 text-emerald-950 font-bold ring-1 ring-emerald-500/20'
                                 : 'border-slate-200 text-slate-700 hover:border-slate-300 bg-white font-medium'
-                            }`}
+                              }`}
                           >
                             {alc}
                           </button>
@@ -1575,11 +1572,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                             key={avoid}
                             type="button"
                             onClick={() => toggleAvoidance(avoid)}
-                            className={`wizard-option-btn p-3 rounded-xl border text-left text-xs transition-all flex items-center justify-between gap-2 cursor-pointer ${
-                              isSelected
+                            className={`wizard-option-btn p-3 rounded-xl border text-left text-xs transition-all flex items-center justify-between gap-2 cursor-pointer ${isSelected
                                 ? 'is-selected border-amber-600 bg-amber-50 text-amber-950 font-bold shadow-xs'
                                 : 'border-slate-200 text-slate-600 hover:border-slate-300 bg-white font-medium'
-                            }`}
+                              }`}
                           >
                             <span className="leading-snug break-words flex-1">{avoid}</span>
                             {isSelected && <Check className="w-3.5 h-3.5 text-amber-600 shrink-0 ml-1" />}
@@ -1624,11 +1620,10 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
               type="button"
               onClick={handleNext}
               disabled={currentStep === 1 && !selectedDestinationPlace}
-              className={`px-6 sm:px-9 py-3.5 rounded-2xl font-bold text-sm shadow-xl transition-all flex items-center gap-2 border ${
-                currentStep === 1 && !selectedDestinationPlace
+              className={`px-6 sm:px-9 py-3.5 rounded-2xl font-bold text-sm shadow-xl transition-all flex items-center gap-2 border ${currentStep === 1 && !selectedDestinationPlace
                   ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-300 dark:border-slate-700 cursor-not-allowed opacity-60'
                   : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30 border-emerald-400/40 hover:scale-102 active:scale-98 cursor-pointer'
-              }`}
+                }`}
             >
               <span>{currentStep === totalSteps ? 'Generate AI Itinerary' : 'Continue →'}</span>
               {currentStep === totalSteps ? (

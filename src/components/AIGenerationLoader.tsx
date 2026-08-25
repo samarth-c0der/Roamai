@@ -1,55 +1,32 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Sparkles, CheckCircle2, Loader2, Compass, MapPin } from 'lucide-react';
-import confetti from 'canvas-confetti';
 
 interface AIGenerationLoaderProps {
   destinationName: string;
-  onComplete: () => void;
 }
 
 const STEPS = [
   'Understanding your preferences',
-  'Finding the best places',
-  'Optimizing travel time',
-  'Checking your budget',
-  'Building your itinerary',
-  'Preparing your trip checklist'
+  'Finding real verified places with Google Maps',
+  'Optimizing route & travel times',
+  'Calculating real-time weather & budget',
+  'Building day-by-day AI itinerary',
+  'Tailoring local packing checklist'
 ];
 
 export const AIGenerationLoader: React.FC<AIGenerationLoaderProps> = ({
-  destinationName,
-  onComplete
+  destinationName
 }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentStepIndex((prev) => {
-        if (prev < STEPS.length - 1) {
-          return prev + 1;
-        } else {
-          clearInterval(interval);
-          // Confetti celebration
-          try {
-            confetti({
-              particleCount: 70,
-              spread: 60,
-              origin: { y: 0.6 }
-            });
-          } catch (e) {
-            // ignore if not supported
-          }
-          setTimeout(() => {
-            onComplete();
-          }, 600);
-          return prev;
-        }
-      });
-    }, 550);
+      setCurrentStepIndex((prev) => (prev < STEPS.length - 1 ? prev + 1 : prev));
+    }, 700);
 
     return () => clearInterval(interval);
-  }, [onComplete]);
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-4 relative overflow-hidden">
@@ -58,64 +35,76 @@ export const AIGenerationLoader: React.FC<AIGenerationLoaderProps> = ({
 
       <div className="max-w-md w-full bg-slate-800/90 backdrop-blur-xl rounded-3xl p-8 border border-slate-700/80 shadow-2xl relative z-10 text-center space-y-6">
         {/* Animated Icon */}
-        <div className="relative mx-auto w-20 h-20">
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 blur-lg opacity-40 animate-pulse" />
-          <div className="relative w-full h-full rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 shadow-xl">
-            <Compass className="w-10 h-10 animate-spin text-slate-950" style={{ animationDuration: '6s' }} />
-          </div>
+        <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
+          <motion.div
+            className="absolute inset-0 rounded-2xl bg-emerald-500/20 border border-emerald-500/40"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+          />
+          <motion.div
+            className="w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30"
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
+            <Sparkles className="w-7 h-7 text-white animate-pulse" />
+          </motion.div>
         </div>
 
-        <div>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold uppercase tracking-wider mb-2">
-            <Sparkles className="w-3.5 h-3.5" />
-            RoamAI Engine
+        {/* Title */}
+        <div className="space-y-2">
+          <span className="text-xs uppercase font-extrabold tracking-widest text-emerald-400">
+            Gemini AI Engine
           </span>
           <h2 className="text-2xl font-bold tracking-tight text-white">
-            Creating your perfect {destinationName} trip…
+            Planning Your Trip to {destinationName || 'Your Destination'}
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Personalizing schedule, packing guide, and travel companions
+          <p className="text-sm text-slate-400 font-normal">
+            Fetching authentic landmarks, calculating routes & generating your custom plan...
           </p>
         </div>
 
-        {/* Progress Checklist */}
-        <div className="space-y-2.5 text-left bg-slate-900/60 p-4 rounded-2xl border border-slate-700/60">
-          {STEPS.map((step, idx) => {
-            const isDone = idx < currentStepIndex;
-            const isCurrent = idx === currentStepIndex;
+        {/* Dynamic Progress Steps List */}
+        <div className="space-y-3 text-left pt-2">
+          {STEPS.map((step, index) => {
+            const isCompleted = index < currentStepIndex;
+            const isCurrent = index === currentStepIndex;
 
             return (
               <motion.div
                 key={step}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                className={`flex items-center gap-3 text-xs transition-colors py-1 ${
-                  isDone
-                    ? 'text-emerald-400 font-medium'
-                    : isCurrent
-                    ? 'text-white font-bold'
-                    : 'text-slate-500'
+                transition={{ delay: index * 0.1 }}
+                className={`flex items-center gap-3 p-2.5 rounded-xl border text-xs font-medium transition-all ${
+                  isCurrent
+                    ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300 shadow-sm ring-1 ring-emerald-500/20'
+                    : isCompleted
+                    ? 'bg-slate-800/40 border-slate-700/40 text-slate-300'
+                    : 'bg-slate-900/30 border-transparent text-slate-600'
                 }`}
               >
-                <div className="w-4 h-4 shrink-0 flex items-center justify-center">
-                  {isDone ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  ) : isCurrent ? (
-                    <Loader2 className="w-4 h-4 text-teal-400 animate-spin" />
-                  ) : (
-                    <div className="w-1.5 h-1.5 rounded-full bg-slate-600" />
-                  )}
-                </div>
+                {isCompleted ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                ) : isCurrent ? (
+                  <Loader2 className="w-4 h-4 text-emerald-400 animate-spin shrink-0" />
+                ) : (
+                  <div className="w-4 h-4 rounded-full border border-slate-700 shrink-0" />
+                )}
                 <span>{step}</span>
               </motion.div>
             );
           })}
         </div>
 
-        {/* Live status ticker */}
-        <p className="text-[11px] text-slate-400 font-mono">
-          ✓ Real-time route optimization active
-        </p>
+        {/* Progress Bar */}
+        <div className="w-full bg-slate-700/50 h-2 rounded-full overflow-hidden">
+          <motion.div
+            className="h-full bg-gradient-to-r from-emerald-400 to-teal-400 rounded-full"
+            initial={{ width: '10%' }}
+            animate={{ width: `${Math.min(95, ((currentStepIndex + 1) / STEPS.length) * 100)}%` }}
+            transition={{ duration: 0.5 }}
+          />
+        </div>
       </div>
     </div>
   );

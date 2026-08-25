@@ -20,6 +20,6 @@ export const config = {
     name: 'RoamAI',
   },
   models: {
-    defaultAiModel: 'gemini-1.5-flash',
+    defaultAiModel: 'gemini-3.6-flash',
   }
 };

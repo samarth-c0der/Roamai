@@ -86,8 +86,9 @@ export const MapView: React.FC<MapViewProps> = ({
   onSelectActivity,
   onOpenMapSearch
 }) => {
-  const currentDay = trip.days.find((d) => d.dayNumber === activeDayNumber) || trip.days[0];
-  const activities = currentDay.activities;
+  const days = trip?.days || [];
+  const currentDay = days.find((d) => d.dayNumber === activeDayNumber) || days[0] || { dayNumber: 1, theme: `${trip?.destination || 'Destination'} Highlights`, activities: [] };
+  const activities = currentDay.activities || [];
 
   const [selectedPinIndex, setSelectedPinIndex] = useState<number>(0);
   const [showInfoWindow, setShowInfoWindow] = useState<boolean>(true);
@@ -168,7 +169,7 @@ export const MapView: React.FC<MapViewProps> = ({
         {/* Day switch buttons & Map Controls */}
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-            {trip.days.map((day) => (
+            {days.map((day) => (
               <button
                 key={day.dayNumber}
                 onClick={() => {

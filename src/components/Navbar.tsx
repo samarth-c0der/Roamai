@@ -7,7 +7,6 @@ interface NavbarProps {
   onNavigate: (view: 'landing' | 'wizard' | 'itinerary' | 'trip_mode' | 'my_trips' | 'map_search') => void;
   activeTrip: Trip | null;
   savedTripsCount: number;
-  onLoadPreset: (destId: 'goa' | 'manali' | 'wayanad') => void;
   currentTheme: ThemeConfig;
   onOpenThemeModal: () => void;
 }
@@ -17,7 +16,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigate,
   activeTrip,
   savedTripsCount,
-  onLoadPreset,
   currentTheme,
   onOpenThemeModal
 }) => {
@@ -165,61 +163,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Palette className="w-3.5 h-3.5 text-white/80 ml-0.5" />
             </button>
 
-            {/* Quick Demo Switcher */}
-            <div className="relative">
-              <button
-                onClick={() => setIsProfileOpen(!isProfileOpen)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/30 bg-black/25 hover:bg-black/35 text-white text-xs font-semibold backdrop-blur-md transition-all shadow-xs"
-                style={{ textShadow: '0 1px 3px rgba(0,0,0,0.6)' }}
-                title="Switch demo destinations or settings"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                <span className="font-semibold">Demo Trips</span>
-                <ChevronDown className="w-3.5 h-3.5 text-white/80" />
-              </button>
 
-              {isProfileOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 py-2 z-50 text-left text-white">
-                  <div className="px-3 py-2 border-b border-white/10">
-                    <p className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">Quick Load Destination</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      onLoadPreset('goa');
-                      setIsProfileOpen(false);
-                    }}
-                    className="w-full px-3 py-2 text-xs font-medium text-white hover:bg-white/10 flex items-center justify-between"
-                  >
-                    <span>🌴 Goa (4 Days • Friends)</span>
-                    {activeTrip?.destination === 'Goa' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
-                  </button>
-                  <button
-                    onClick={() => {
-                      onLoadPreset('manali');
-                      setIsProfileOpen(false);
-                    }}
-                    className="w-full px-3 py-2 text-xs font-medium text-white hover:bg-white/10 flex items-center justify-between"
-                  >
-                    <span>🏔️ Manali (5 Days • High Altitude)</span>
-                    {activeTrip?.destination === 'Manali' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
-                  </button>
-                  <button
-                    onClick={() => {
-                      onLoadPreset('wayanad');
-                      setIsProfileOpen(false);
-                    }}
-                    className="w-full px-3 py-2 text-xs font-medium text-white hover:bg-white/10 flex items-center justify-between"
-                  >
-                    <span>🌿 Wayanad (3 Days • Rainforest)</span>
-                    {activeTrip?.destination === 'Wayanad' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
-                  </button>
-                  <div className="my-1 border-t border-white/10"></div>
-                  <div className="px-3 py-1.5">
-                    <p className="text-[10px] text-slate-400">Personalized AI Engine Active</p>
-                  </div>
-                </div>
-              )}
-            </div>
 
             {/* Primary CTA */}
             <button
@@ -333,39 +277,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
               <div className="w-3.5 h-3.5 rounded-full border border-white/40" style={{ backgroundColor: currentTheme.primaryColor }} />
             </button>
-          </div>
-
-          <div className="pt-2 border-t border-white/10 flex flex-col gap-2">
-            <p className="text-xs font-semibold text-white/60 px-4">Switch Demo Destination</p>
-            <div className="grid grid-cols-3 gap-2 px-2">
-              <button
-                onClick={() => {
-                  onLoadPreset('goa');
-                  setIsMobileMenuOpen(false);
-                }}
-                className="py-1.5 px-2 text-xs rounded-lg border border-white/20 bg-white/10 text-white font-semibold text-center hover:bg-white/20"
-              >
-                🌴 Goa
-              </button>
-              <button
-                onClick={() => {
-                  onLoadPreset('manali');
-                  setIsMobileMenuOpen(false);
-                }}
-                className="py-1.5 px-2 text-xs rounded-lg border border-white/20 bg-white/10 text-white font-semibold text-center hover:bg-white/20"
-              >
-                🏔️ Manali
-              </button>
-              <button
-                onClick={() => {
-                  onLoadPreset('wayanad');
-                  setIsMobileMenuOpen(false);
-                }}
-                className="py-1.5 px-2 text-xs rounded-lg border border-white/20 bg-white/10 text-white font-semibold text-center hover:bg-white/20"
-              >
-                🌿 Wayanad
-              </button>
-            </div>
           </div>
         </div>
       )}

@@ -41,12 +41,13 @@ export const PreparationView: React.FC<PreparationViewProps> = ({
     'Health & Essentials'
   ];
 
+  const packingList = trip?.packingList || [];
   const filteredPacking = selectedCategory === 'All'
-    ? trip.packingList
-    : trip.packingList.filter(item => item.category === selectedCategory);
+    ? packingList
+    : packingList.filter(item => item.category === selectedCategory);
 
-  const checkedCount = trip.packingList.filter(i => i.checked).length;
-  const totalCount = trip.packingList.length;
+  const checkedCount = packingList.filter(i => i.checked).length;
+  const totalCount = packingList.length;
   const progressPercent = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
 
   const handleAddNew = (e: React.FormEvent) => {

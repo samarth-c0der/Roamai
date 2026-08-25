@@ -59,6 +59,26 @@ export const MyTripsView: React.FC<MyTripsViewProps> = ({
         </button>
       </div>
 
+      {/* Empty State */}
+      {trips.length === 0 && (
+        <div className="p-12 text-center rounded-3xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-white/60 dark:border-white/10 shadow-xl space-y-4 max-w-lg mx-auto">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-inner">
+            <Sparkles className="w-8 h-8" />
+          </div>
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white">No Planned Trips Yet</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Start by searching any destination on Google Maps and let Gemini AI create a tailored itinerary for you.
+          </p>
+          <button
+            onClick={onPlanNewTrip}
+            className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition-all inline-flex items-center gap-2 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Plan Your First Trip</span>
+          </button>
+        </div>
+      )}
+
       {/* Trips Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {trips.map((trip) => {

@@ -13,6 +13,7 @@ import {
   Users,
   MapPin,
   Compass,
+  Plus,
   Image as ImageIcon
 } from 'lucide-react';
 
@@ -26,10 +27,8 @@ import heroCardImage from '../assets/images/regenerated_image_1787112827232.png'
 interface LandingPageProps {
   currentTheme?: ThemeConfig;
   recentTrip?: Trip | null;
-  demoTrip?: Trip | null;
   onOpenTrip?: (tripId: string) => void;
   onStartPlanning: (destinationId?: string) => void;
-  onExploreDemo: () => void;
   onOpenThemeModal?: () => void;
   onOpenMapSearch?: () => void;
 }
@@ -37,10 +36,8 @@ interface LandingPageProps {
 export const LandingPage: React.FC<LandingPageProps> = ({
   currentTheme,
   recentTrip,
-  demoTrip,
   onOpenTrip,
   onStartPlanning,
-  onExploreDemo,
   onOpenThemeModal,
   onOpenMapSearch
 }) => {
@@ -58,17 +55,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const heroBadgeText = currentTheme?.heroBadgeText || 'var(--hero-badge-text)';
 
   const preview = currentTheme?.previewTrip || {
-    title: 'Goa Coastal & Heritage',
+    title: 'Personalized AI Journey',
     image: heroCardImage,
-    subtitle: '4 Days • 3 Travellers • Friends Vibe',
-    budget: '₹30,000 Budget',
-    temp: '29°C ☀️',
-    day1Title: 'Day 1 • Arrival & Sunset Highlights',
-    activity1: { time: '09:30', title: 'Baba Au Rhum Cafe', category: 'Organic bakery • Paddy view', cost: '₹1,200' },
-    activity2: { time: '05:15', title: 'Chapora Fort Sunset', category: 'Photography', cost: '₹500' }
+    subtitle: 'Tailored Itinerary • Real Coordinates • Live Weather',
+    budget: 'Smart Calibrated Budget',
+    temp: '26°C ☀️',
+    day1Title: 'Day 1 • Arrival & Highlights',
+    activity1: { time: '10:00 AM', title: 'Local Heritage Immersion', category: 'Culture', cost: '₹500' },
+    activity2: { time: '05:30 PM', title: 'Golden Hour Sunset Vista', category: 'Relaxation', cost: '₹300' }
   };
 
-  const displayTrip = recentTrip || demoTrip;
+  const displayTrip = recentTrip;
   const hasUserRecentTrip = Boolean(recentTrip);
   const isUserTrip = hasUserRecentTrip;
 
@@ -163,23 +160,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                 </button>
 
-                <button
-                  id="hero-demo-btn"
-                  onClick={onExploreDemo}
-                  className="px-6 py-3.5 rounded-2xl border font-semibold text-base shadow-xs transition-all flex items-center justify-center gap-2 active:scale-98 cursor-pointer bg-white/40 hover:bg-white/55 dark:bg-slate-900/40 dark:hover:bg-slate-900/60 backdrop-blur-xl text-slate-900 dark:text-slate-100 border-white/50 dark:border-white/20"
-                >
-                  <Eye className="w-4 h-4" style={{ color: primaryColor }} />
-                  <span>Explore Demo (Goa)</span>
-                </button>
-
                 {onOpenMapSearch && (
                   <button
                     id="hero-map-search-btn"
                     onClick={onOpenMapSearch}
-                    className="px-5 py-3.5 rounded-2xl border font-semibold text-base shadow-xs transition-all flex items-center justify-center gap-2 active:scale-98 cursor-pointer bg-emerald-500/20 hover:bg-emerald-500/30 text-slate-900 dark:text-emerald-300 border-emerald-400/40 backdrop-blur-xl"
+                    className="px-6 py-3.5 rounded-2xl border font-semibold text-base shadow-xs transition-all flex items-center justify-center gap-2 active:scale-98 cursor-pointer bg-emerald-500/20 hover:bg-emerald-500/30 text-slate-900 dark:text-emerald-300 border-emerald-400/40 backdrop-blur-xl"
                   >
                     <Compass className="w-4 h-4 text-emerald-500 animate-spin-slow" />
-                    <span>Search Any Place</span>
+                    <span>Search Any Place on Maps</span>
                   </button>
                 )}
               </div>
@@ -332,7 +320,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     if (hasUserRecentTrip && displayTrip?.id && onOpenTrip) {
                       onOpenTrip(displayTrip.id);
                     } else {
-                      onExploreDemo();
+                      onStartPlanning();
                     }
                   }}
                   className="w-full py-3.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 text-white cursor-pointer shadow-md hover:shadow-lg hover:brightness-105 active:scale-[0.99]"
@@ -341,7 +329,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <span>
                     {hasUserRecentTrip && displayTrip?.destination 
                       ? `Open ${displayTrip.destination.split(',')[0]} Itinerary` 
-                      : 'Explore Demo Itinerary'}
+                      : 'Create Your Itinerary'}
                   </span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
@@ -548,53 +536,57 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     : '0 1px 6px rgba(255,255,255,0.9)'
                 }}
               >
-                Popular AI Destinations
+                Explore Any Destination with AI
               </h2>
               <p 
                 className="text-sm mt-1 font-medium"
                 style={{ color: isDark ? '#cbd5e1' : '#1e293b' }}
               >
-                Select a destination to start customizing with your preferences.
+                Type any city, town, or landmark worldwide. Gemini AI and Google Maps will create a custom itinerary.
               </p>
             </div>
             <button
               onClick={() => onStartPlanning()}
-              className="mt-3 sm:mt-0 inline-flex items-center gap-1.5 text-sm font-semibold transition-colors cursor-pointer px-4 py-2 rounded-xl bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border border-white/40 dark:border-white/20 shadow-xs"
+              className="mt-3 sm:mt-0 inline-flex items-center gap-1.5 text-sm font-semibold transition-colors cursor-pointer px-5 py-2.5 rounded-xl bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border border-white/40 dark:border-white/20 shadow-xs hover:bg-white/60"
               style={{ color: primaryColor }}
             >
-              <span>Custom Destination</span>
+              <span>Launch Trip Planner</span>
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-            {[
-              { id: 'goa', name: 'Goa', region: 'India', img: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&q=80' },
-              { id: 'bali', name: 'Bali', region: 'Indonesia', img: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800&q=80' },
-              { id: 'paris', name: 'Paris', region: 'France', img: 'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?w=800&q=80' },
-              { id: 'tokyo', name: 'Tokyo', region: 'Japan', img: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&q=80' },
-              { id: 'new-york', name: 'New York', region: 'USA', img: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800&q=80' },
-              { id: 'dubai', name: 'Dubai', region: 'UAE', img: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=800&q=80' }
-            ].map((dest) => (
-              <div
-                key={dest.id}
-                onClick={() => onStartPlanning(dest.name)}
-                className="rounded-xl overflow-hidden border shadow-sm hover:shadow-md transition-all text-left flex flex-col group cursor-pointer bg-white/35 dark:bg-slate-900/40 backdrop-blur-2xl border-white/50 dark:border-white/15"
-              >
-                <div className="relative h-24 overflow-hidden">
-                  <img
-                    src={dest.img}
-                    alt={dest.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/70 via-transparent to-transparent" />
-                  <div className="absolute bottom-2 left-2 text-white">
-                    <h3 className="text-sm font-bold">{dest.name}</h3>
-                    <p className="text-[10px] text-slate-200">{dest.region}</p>
-                  </div>
-                </div>
+          <div className="p-8 rounded-3xl border border-white/40 dark:border-white/10 bg-white/30 dark:bg-slate-900/30 backdrop-blur-2xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 text-left">
+            <div className="space-y-2 max-w-xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs font-bold border border-emerald-400/30">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Zero Predefined Data • 100% Live AI & Maps</span>
               </div>
-            ))}
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+                Where would you like to travel next?
+              </h3>
+              <p className="text-sm text-slate-700 dark:text-slate-300">
+                Search any address or country. The AI companion analyzes local weather, authentic food spots, real coordinates, transit hubs, and generates dynamic day-by-day itineraries.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row items-stretch gap-3 w-full md:w-auto shrink-0">
+              <button
+                onClick={() => onStartPlanning()}
+                className="px-6 py-3.5 rounded-2xl font-bold text-sm text-white shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                style={{ backgroundColor: primaryColor }}
+              >
+                <Plus className="w-4 h-4" />
+                <span>Start New Itinerary</span>
+              </button>
+              {onOpenMapSearch && (
+                <button
+                  onClick={onOpenMapSearch}
+                  className="px-5 py-3.5 rounded-2xl border border-slate-300/80 dark:border-white/20 font-bold text-sm text-slate-900 dark:text-white bg-white/40 dark:bg-slate-800/40 backdrop-blur-md hover:bg-white/60 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Compass className="w-4 h-4 text-emerald-500" />
+                  <span>Interactive Map</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </section>

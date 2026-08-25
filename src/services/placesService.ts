@@ -1,4 +1,5 @@
 import { SavedPlace, PlaceSearchResult } from '../types';
+import { fetchSavedPlaces, savePlaceToBackend, deletePlaceFromBackend } from './supabaseClient';
 
 const SAVED_PLACES_STORAGE_KEY = 'roamai_saved_places_v1';
 
@@ -17,7 +18,7 @@ export function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lo
   return Number((R * c).toFixed(1));
 }
 
-// Local persistent storage for saved places
+// Synchronous local reading for instant UI components
 export function getSavedPlaces(): SavedPlace[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -31,13 +32,16 @@ export function getSavedPlaces(): SavedPlace[] {
 }
 
 export function savePlaceToStorage(place: Omit<SavedPlace, 'savedAt'>): SavedPlace {
-  const current = getSavedPlaces();
-  const existingIndex = current.findIndex((p) => p.placeId === place.placeId);
   const newEntry: SavedPlace = {
     ...place,
     savedAt: new Date().toISOString()
   };
 
+  // Sync with Supabase / local storage asynchronously
+  savePlaceToBackend(place).catch((e) => console.warn('Backend save error:', e));
+
+  const current = getSavedPlaces();
+  const existingIndex = current.findIndex((p) => p.placeId === place.placeId);
   let updated: SavedPlace[];
   if (existingIndex >= 0) {
     updated = [newEntry, ...current.filter((_, i) => i !== existingIndex)];
@@ -56,6 +60,8 @@ export function savePlaceToStorage(place: Omit<SavedPlace, 'savedAt'>): SavedPla
 }
 
 export function removeSavedPlace(placeId: string): SavedPlace[] {
+  deletePlaceFromBackend(placeId).catch((e) => console.warn('Backend delete error:', e));
+
   const current = getSavedPlaces();
   const updated = current.filter((p) => p.placeId !== placeId);
   if (typeof window !== 'undefined') {
@@ -87,188 +93,16 @@ export interface AutocompleteSuggestion {
   lng?: number;
 }
 
-// Curated global landmarks and fallback locations
-const CURATED_PLACES_DATABASE: Array<{
-  name: string;
-  category: string;
-  address: string;
-  lat: number;
-  lng: number;
-  rating: number;
-  photoUrl: string;
-  types: string[];
-}> = [
-  {
-    name: 'Anjuna Beach & Flea Market',
-    category: 'Beach & Culture',
-    address: 'Anjuna, North Goa, Goa 403509, India',
-    lat: 15.5800,
-    lng: 73.7421,
-    rating: 4.6,
-    photoUrl: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=800&q=80',
-    types: ['natural_feature', 'tourist_attraction', 'point_of_interest']
-  },
-  {
-    name: 'Baga Beach Watersports',
-    category: 'Adventure',
-    address: 'Baga Beach, Calangute, Goa 403516, India',
-    lat: 15.5553,
-    lng: 73.7517,
-    rating: 4.5,
-    photoUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
-    types: ['natural_feature', 'tourist_attraction']
-  },
-  {
-    name: 'Goa International Airport (GOI Dabolim)',
-    category: 'Transit',
-    address: 'Airport Rd, Dabolim, Goa 403801, India',
-    lat: 15.3808,
-    lng: 73.8313,
-    rating: 4.3,
-    photoUrl: 'https://images.unsplash.com/photo-1530521954074-e64f6810b32d?auto=format&fit=crop&w=800&q=80',
-    types: ['airport', 'transit_station', 'point_of_interest']
-  },
-  {
-    name: 'Manohar International Airport (MOPA GOX)',
-    category: 'Transit',
-    address: 'Mopa, Pernem, Goa 403512, India',
-    lat: 15.7583,
-    lng: 73.8732,
-    rating: 4.5,
-    photoUrl: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=800&q=80',
-    types: ['airport', 'transit_station']
-  },
-  {
-    name: "Mall De Goa Shopping Centre",
-    category: 'Shopping',
-    address: 'NH 66, Porvorim, Goa 403521, India',
-    lat: 15.5342,
-    lng: 73.8291,
-    rating: 4.4,
-    photoUrl: 'https://images.unsplash.com/photo-1567449303183-ae0d6ed1498e?auto=format&fit=crop&w=800&q=80',
-    types: ['shopping_mall', 'point_of_interest']
-  },
-  {
-    name: "Gunpowder South Indian Kitchen",
-    category: 'Food',
-    address: 'Anjuna Mapusa Rd, Assagao, Goa 403507, India',
-    lat: 15.5898,
-    lng: 73.7745,
-    rating: 4.7,
-    photoUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80',
-    types: ['restaurant', 'food', 'point_of_interest']
-  },
-  {
-    name: "Fisherman's Wharf Fine Dining",
-    category: 'Food',
-    address: 'At The Riverside, Salcette, Cavelossim, Goa 403731, India',
-    lat: 15.1764,
-    lng: 73.9472,
-    rating: 4.6,
-    photoUrl: 'https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=800&q=80',
-    types: ['restaurant', 'food', 'point_of_interest']
-  },
-  {
-    name: 'Aguada Fort & Lighthouse',
-    category: 'Sightseeing',
-    address: 'Sinquerim, Candolim, Goa 403515, India',
-    lat: 15.4925,
-    lng: 73.7736,
-    rating: 4.6,
-    photoUrl: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?auto=format&fit=crop&w=800&q=80',
-    types: ['tourist_attraction', 'historical_landmark']
-  },
-  {
-    name: 'Solang Valley Adventure Arena',
-    category: 'Adventure',
-    address: 'Solang Valley, Manali, Himachal Pradesh 175131, India',
-    lat: 32.3166,
-    lng: 77.1583,
-    rating: 4.7,
-    photoUrl: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=800&q=80',
-    types: ['tourist_attraction', 'point_of_interest']
-  },
-  {
-    name: 'Chembra Peak & Heart Lake',
-    category: 'Adventure',
-    address: 'Meppadi, Wayanad, Kerala 673577, India',
-    lat: 11.5127,
-    lng: 76.0877,
-    rating: 4.8,
-    photoUrl: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=800&q=80',
-    types: ['natural_feature', 'tourist_attraction']
-  },
-  {
-    name: 'Eiffel Tower & Champ de Mars',
-    category: 'Sightseeing',
-    address: 'Champ de Mars, 5 Av. Anatole France, 75007 Paris, France',
-    lat: 48.8584,
-    lng: 2.2945,
-    rating: 4.8,
-    photoUrl: 'https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?auto=format&fit=crop&w=800&q=80',
-    types: ['tourist_attraction', 'point_of_interest']
-  },
-  {
-    name: 'Times Square & Broadway',
-    category: 'Sightseeing',
-    address: 'Manhattan, NY 10036, United States',
-    lat: 40.7580,
-    lng: -73.9855,
-    rating: 4.7,
-    photoUrl: 'https://images.unsplash.com/photo-1506146332389-18140dc7b2fb?auto=format&fit=crop&w=800&q=80',
-    types: ['tourist_attraction', 'point_of_interest']
-  },
-  {
-    name: 'Shibuya Crossing & Hachiko',
-    category: 'Sightseeing',
-    address: 'Shibuya City, Tokyo 150-0043, Japan',
-    lat: 35.6595,
-    lng: 139.7005,
-    rating: 4.7,
-    photoUrl: 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=800&q=80',
-    types: ['tourist_attraction', 'point_of_interest']
-  }
-];
-
 /**
- * Fallback search using open geocoding / curated database
+ * Dynamic OpenStreetMap Nominatim Geocoding search (no hardcoded/predefined database)
  */
 async function fallbackSearchPlaces(query: string, userCoords?: { lat: number; lng: number } | null): Promise<PlaceSearchResult[]> {
-  const lower = query.toLowerCase().trim();
+  if (!query || !query.trim()) return [];
+  const clean = query.trim();
 
-  // Check curated database
-  const matchingCurated = CURATED_PLACES_DATABASE.filter((p) => {
-    return (
-      p.name.toLowerCase().includes(lower) ||
-      p.address.toLowerCase().includes(lower) ||
-      p.category.toLowerCase().includes(lower) ||
-      p.types.some((t) => t.toLowerCase().includes(lower)) ||
-      (lower.includes('restaurant') && p.category === 'Food') ||
-      (lower.includes('airport') && p.category === 'Transit') ||
-      (lower.includes('mall') && p.category === 'Shopping') ||
-      (lower.includes('cafe') && (p.category === 'Food' || p.name.includes('Cafe'))) ||
-      (lower.includes('beach') && p.name.includes('Beach'))
-    );
-  });
-
-  if (matchingCurated.length > 0) {
-    return matchingCurated.map((p, idx) => ({
-      placeId: `curated-${idx}-${p.name.replace(/\s+/g, '-').toLowerCase()}`,
-      name: p.name,
-      address: p.address,
-      latitude: p.lat,
-      longitude: p.lng,
-      rating: p.rating,
-      photoUrl: p.photoUrl,
-      types: p.types,
-      distanceKm: userCoords ? calculateDistanceKm(userCoords.lat, userCoords.lng, p.lat, p.lng) : undefined
-    }));
-  }
-
-  // If not in curated list, attempt Nominatim Geocoding API
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=8&addressdetails=1`,
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(clean)}&limit=8&addressdetails=1`,
       { headers: { 'Accept-Language': 'en' } }
     );
     if (res.ok) {
@@ -285,36 +119,36 @@ async function fallbackSearchPlaces(query: string, userCoords?: { lat: number; l
             longitude: Number(lng.toFixed(6)),
             types: [item.type || 'point_of_interest', item.class || 'establishment'],
             rating: 4.5,
-            photoUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
+            photoUrl: undefined,
             distanceKm: userCoords ? calculateDistanceKm(userCoords.lat, userCoords.lng, lat, lng) : undefined
           };
         });
       }
     }
   } catch (err) {
-    console.warn('Fallback Nominatim search failed:', err);
+    console.warn('Live Nominatim geocoding search failed:', err);
   }
 
-  // Return a generic place result around userCoords or default Goa coordinates
-  const fallbackLat = userCoords?.lat || 15.5800;
-  const fallbackLng = userCoords?.lng || 73.7421;
+  // If search returned no results and user coordinates are available, return location at user's coordinates
+  if (userCoords && userCoords.lat && userCoords.lng) {
+    return [
+      {
+        placeId: `custom-query-${Date.now()}`,
+        name: clean,
+        address: `${clean}`,
+        latitude: userCoords.lat,
+        longitude: userCoords.lng,
+        types: ['point_of_interest'],
+        rating: 4.5
+      }
+    ];
+  }
 
-  return [
-    {
-      placeId: `custom-query-${Date.now()}`,
-      name: query,
-      address: `${query} (Search Location)`,
-      latitude: fallbackLat,
-      longitude: fallbackLng,
-      types: ['point_of_interest'],
-      rating: 4.5,
-      photoUrl: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=800&q=80'
-    }
-  ];
+  return [];
 }
 
 /**
- * Fetch autocomplete predictions using Google Places Autocomplete API with safe fallback
+ * Fetch autocomplete predictions using Google Places Autocomplete API with live geocoder fallback
  */
 export async function getGooglePlacesPredictions(
   input: string,
@@ -323,7 +157,7 @@ export async function getGooglePlacesPredictions(
   if (!input || !input.trim()) return [];
   const query = input.trim();
 
-  // Check if Google Maps Places SDK is available
+  // Check if Google Maps Places SDK is available in the browser window
   if (
     typeof window !== 'undefined' &&
     typeof (window as any).google !== 'undefined' &&
@@ -364,17 +198,17 @@ export async function getGooglePlacesPredictions(
         return predictions;
       }
     } catch (e) {
-      console.warn('Google Places autocomplete service error, falling back:', e);
+      console.warn('Google Places autocomplete service error, checking live geocoder:', e);
     }
   }
 
-  // Fallback to local curated suggestions and geocoding
+  // Fallback to live OSM Nominatim Geocoding without any predefined places
   const fallbackResults = await fallbackSearchPlaces(query, userCoords);
   return fallbackResults.map((p) => ({
     placeId: p.placeId,
     mainText: p.name,
     secondaryText: p.address,
-    description: `${p.name}, ${p.address}`,
+    description: p.address ? `${p.name}, ${p.address}` : p.name,
     types: p.types,
     lat: p.latitude,
     lng: p.longitude
@@ -388,23 +222,6 @@ export async function getGooglePlaceDetails(
   placeId: string,
   mapInstance?: any
 ): Promise<PlaceSearchResult> {
-  // Check if placeId is a curated or OSM place
-  if (placeId.startsWith('curated-') || placeId.startsWith('osm-') || placeId.startsWith('custom-')) {
-    const curated = CURATED_PLACES_DATABASE.find((p) => placeId.includes(p.name.replace(/\s+/g, '-').toLowerCase()));
-    if (curated) {
-      return {
-        placeId,
-        name: curated.name,
-        address: curated.address,
-        latitude: curated.lat,
-        longitude: curated.lng,
-        rating: curated.rating,
-        photoUrl: curated.photoUrl,
-        types: curated.types
-      };
-    }
-  }
-
   // Use Google PlacesService if available
   if (
     typeof window !== 'undefined' &&
@@ -428,7 +245,7 @@ export async function getGooglePlaceDetails(
               const lat = place.geometry.location.lat();
               const lng = place.geometry.location.lng();
               const photoUrl = place.photos && place.photos.length > 0
-                ? place.photos[0].getUrl({ maxWidth: 600, maxHeight: 400 })
+                ? place.photos[0].getUrl({ maxWidth: 800, maxHeight: 600 })
                 : undefined;
 
               resolve({
@@ -438,7 +255,7 @@ export async function getGooglePlaceDetails(
                 latitude: Number(lat.toFixed(6)),
                 longitude: Number(lng.toFixed(6)),
                 types: place.types,
-                rating: place.rating,
+                rating: place.rating || 4.5,
                 photoUrl
               });
             } else {
@@ -482,15 +299,19 @@ export async function getGooglePlaceDetails(
     }
   }
 
-  // Default fallback place
+  // Dynamic geocoding fallback
+  const searchMatch = await fallbackSearchPlaces(placeId);
+  if (searchMatch.length > 0) {
+    return searchMatch[0];
+  }
+
   return {
     placeId,
     name: 'Selected Place',
-    address: 'Location coordinates verified on Google Maps',
-    latitude: 15.5800,
-    longitude: 73.7421,
-    rating: 4.5,
-    photoUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80'
+    address: 'Location verified on Google Maps',
+    latitude: 0,
+    longitude: 0,
+    rating: 4.5
   };
 }
 
@@ -528,10 +349,10 @@ export async function searchPlacesByQuery(
         service.textSearch(request, (items: any[], status: any) => {
           if (status === (window as any).google.maps.places.PlacesServiceStatus.OK && items) {
             const mapped: PlaceSearchResult[] = items.slice(0, 10).map((r) => {
-              const lat = r.geometry?.location?.lat() || (userCoords?.lat ?? 15.58);
-              const lng = r.geometry?.location?.lng() || (userCoords?.lng ?? 73.74);
+              const lat = r.geometry?.location?.lat() || (userCoords?.lat ?? 0);
+              const lng = r.geometry?.location?.lng() || (userCoords?.lng ?? 0);
               const photoUrl = r.photos && r.photos.length > 0
-                ? r.photos[0].getUrl({ maxWidth: 400, maxHeight: 300 })
+                ? r.photos[0].getUrl({ maxWidth: 500, maxHeight: 400 })
                 : undefined;
 
               let distanceKm: number | undefined;
@@ -541,7 +362,7 @@ export async function searchPlacesByQuery(
 
               return {
                 placeId: r.place_id || `place-${Math.random()}`,
-                name: r.name || 'Unnamed Place',
+                name: r.name || 'Place',
                 address: r.formatted_address || r.vicinity || '',
                 latitude: Number(lat.toFixed(6)),
                 longitude: Number(lng.toFixed(6)),
@@ -562,10 +383,10 @@ export async function searchPlacesByQuery(
         return results;
       }
     } catch (e) {
-      console.warn('Google Places textSearch error, using fallback search:', e);
+      console.warn('Google Places textSearch error, using fallback live geocoding:', e);
     }
   }
 
-  // Fallback to local curated + Nominatim engine
+  // Fallback to live geocoding
   return fallbackSearchPlaces(cleanQuery, userCoords);
 }
