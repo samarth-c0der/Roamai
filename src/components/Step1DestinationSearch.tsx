@@ -19,6 +19,7 @@ import {
   MapPinned
 } from 'lucide-react';
 import { getGooglePlacesPredictions, getGooglePlaceDetails, AutocompleteSuggestion } from '../services/placesService';
+import { evaluateTripFeasibility } from '../utils/travelFeasibility';
 
 export interface SelectedDestinationPlace {
   placeId: string;
@@ -291,6 +292,21 @@ export const Step1DestinationSearch: React.FC<Step1DestinationSearchProps> = ({
                 <span>•</span>
                 <span>Lng: {selectedPlace.longitude.toFixed(4)}</span>
               </div>
+
+              {/* Feasibility Preview Badge */}
+              {(() => {
+                const feasibility = evaluateTripFeasibility({ destination: selectedPlace });
+                return (
+                  <div className="flex flex-wrap items-center gap-2 mt-2.5 pt-2 border-t border-emerald-200/60 dark:border-emerald-800/50">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-900 dark:text-amber-200 bg-amber-100 dark:bg-amber-900/60 px-2.5 py-1 rounded-lg shadow-xs">
+                      ⏱️ Min Required: {feasibility.minDurationDays} Days
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-900 dark:text-emerald-200 bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1 rounded-lg">
+                      Possible Modes: {feasibility.availableTravelModes.map((m) => m.icon).join(' ')}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

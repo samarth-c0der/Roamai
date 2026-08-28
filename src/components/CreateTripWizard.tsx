@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   MapPin,
@@ -25,7 +25,15 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
-  MapPinned
+  MapPinned,
+  RefreshCw,
+  TrendingUp,
+  Lightbulb,
+  Coins,
+  Bot,
+  BedDouble,
+  UtensilsCrossed,
+  Ticket
 } from 'lucide-react';
 import {
   TravelStyle,
@@ -37,9 +45,13 @@ import {
   BudgetTier,
   UserPreferences,
   GroupMember,
-  DestinationPreset
+  DestinationPreset,
+  RealTripBudgetResult
 } from '../types';
 import { Step1DestinationSearch, SelectedDestinationPlace } from './Step1DestinationSearch';
+import { fetchAiRealTripBudget } from '../services/aiBudgetEstimator';
+import { evaluateTripFeasibility, DestinationFeasibility } from '../utils/travelFeasibility';
+import { fetchAiDestinationTravelIntelligence, DestinationTravelIntelligence } from '../services/aiDestinationAdvisor';
 
 interface CreateTripWizardProps {
   initialDestinationId?: string;
@@ -290,6 +302,12 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
   // Step 5: Budget
   const [budgetTier, setBudgetTier] = useState<BudgetTier>('Moderate');
   const [customBudget, setCustomBudget] = useState<number>(30000);
+  const [aiBudgetResult, setAiBudgetResult] = useState<RealTripBudgetResult | null>(null);
+  const [isFetchingAiBudget, setIsFetchingAiBudget] = useState<boolean>(false);
+
+  // AI Destination & Route Logistics Intelligence
+  const [aiDestinationInfo, setAiDestinationInfo] = useState<DestinationTravelIntelligence | null>(null);
+  const [isLoadingAiInfo, setIsLoadingAiInfo] = useState<boolean>(false);
 
   // Step 6: Preferences (default nothing selected)
   const [selectedStyles, setSelectedStyles] = useState<TravelStyle[]>([]);
@@ -335,17 +353,183 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     };
   }, [selectedDestinationPlace]);
 
-  // Effective Start City & Route Calculation
+  // Effective Start City
   const effectiveStartCity = isCustomCityInput && customStartCity.trim() ? customStartCity.trim() : (startCity || 'Origin City');
+
+  // Travel Feasibility Calculation for Selected Destination & Origin
+  const destinationFeasibility: DestinationFeasibility = useMemo(() => {
+    return evaluateTripFeasibility({
+      destination: selectedDestinationPlace || selectedDestination,
+      originCityName: effectiveStartCity,
+      originCoords:
+        detectedLocationData?.lat && detectedLocationData?.lng
+          ? { lat: detectedLocationData.lat, lng: detectedLocationData.lng }
+          : null
+    });
+  }, [selectedDestinationPlace, selectedDestination, effectiveStartCity, detectedLocationData]);
+
+  // Automatically fetch AI travel mode and minimum required days for the selected destination
+  useEffect(() => {
+    const destName =
+      selectedDestinationPlace?.name ||
+      (selectedDestId && selectedDestId !== 'custom-destination' ? selectedDestId : '') ||
+      (selectedDestination.name !== 'Selected Destination' ? selectedDestination.name : '');
+
+    if (!destName) return;
+
+    let isMounted = true;
+    setIsLoadingAiInfo(true);
+
+    fetchAiDestinationTravelIntelligence(destName, effectiveStartCity)
+      .then((info) => {
+        if (!isMounted) return;
+        setAiDestinationInfo(info);
+        if (info.minimumRequiredDays && info.minimumRequiredDays > 0) {
+          setDurationDays(info.minimumRequiredDays);
+          setEndDate(getCalculatedEndDate(startDate, info.minimumRequiredDays));
+        }
+        if (info.recommendedTravelMode) {
+          setTravelMode(info.recommendedTravelMode);
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to fetch AI destination intelligence:', err);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingAiInfo(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedDestinationPlace, selectedDestId, selectedDestination.name, effectiveStartCity]);
+
+  // Keep durationDays aligned with the minimum required trip duration for the chosen destination
+  useEffect(() => {
+    const minRequired = aiDestinationInfo?.minimumRequiredDays || destinationFeasibility.minDurationDays;
+    if (durationDays < minRequired) {
+      setDurationDays(minRequired);
+      setEndDate(getCalculatedEndDate(startDate, minRequired));
+    }
+  }, [destinationFeasibility.minDurationDays, aiDestinationInfo?.minimumRequiredDays, startDate]);
+
+  // Keep travelMode aligned with physically possible travel modes for this destination & route
+  useEffect(() => {
+    if (aiDestinationInfo?.recommendedTravelMode) {
+      setTravelMode(aiDestinationInfo.recommendedTravelMode);
+    } else {
+      const isCurrentModeAvailable = destinationFeasibility.availableTravelModes.some(
+        (m) => m.id === travelMode
+      );
+      if (!isCurrentModeAvailable) {
+        setTravelMode(destinationFeasibility.defaultRecommendedMode);
+      }
+    }
+  }, [aiDestinationInfo?.recommendedTravelMode, destinationFeasibility.availableTravelModes, destinationFeasibility.defaultRecommendedMode]);
+
+  // Dynamic travel modes list fetched by AI for the specific origin -> destination route
+  const travelModesToDisplay = useMemo(() => {
+    if (aiDestinationInfo?.modesBreakdown && aiDestinationInfo.modesBreakdown.length > 0) {
+      return aiDestinationInfo.modesBreakdown.map((item) => ({
+        id: item.mode,
+        label: item.label,
+        icon: item.icon,
+        desc: item.desc || `${item.mode} transit from ${effectiveStartCity} to ${selectedDestination.name}`,
+        tag: item.tag || (item.isRecommended ? 'AI Pick' : 'Available'),
+        isRecommended: item.isRecommended,
+        suitabilityScore: item.suitabilityScore,
+        durationEstimate: item.durationEstimate,
+        estimatedCostRange: item.estimatedCostRange,
+        hasSwitchOrTransfer: item.hasSwitchOrTransfer,
+        transferGuide: item.transferGuide,
+        pros: item.pros,
+        cons: item.cons
+      }));
+    }
+    return destinationFeasibility.availableTravelModes.map((m) => ({
+      id: m.id,
+      label: m.label,
+      icon: m.icon,
+      desc: m.desc,
+      tag: m.tag,
+      isRecommended: m.id === travelMode,
+      suitabilityScore: 85,
+      durationEstimate: 'Direct transit',
+      estimatedCostRange: '',
+      hasSwitchOrTransfer: false,
+      transferGuide: undefined,
+      pros: '',
+      cons: ''
+    }));
+  }, [aiDestinationInfo?.modesBreakdown, destinationFeasibility.availableTravelModes, effectiveStartCity, selectedDestination.name, travelMode]);
+
+  // Route Details Calculation
   const currentRouteDetails = useMemo(() => ({
-    distanceKm: 600,
+    distanceKm: aiDestinationInfo?.distanceKm || destinationFeasibility.distanceKm,
     routeTitle: `${effectiveStartCity} to ${selectedDestination.name}`,
-    keyHighwayOrTrain: 'Direct Transit Corridor',
+    keyHighwayOrTrain: destinationFeasibility.transitSummary.routeNote,
     recommendedMode: travelMode,
-    flightDuration: '2h',
-    trainDuration: '8h',
-    driveDuration: '10h'
-  }), [effectiveStartCity, selectedDestination.name, travelMode]);
+    flightDuration: destinationFeasibility.transitSummary.flightTime || '2h',
+    trainDuration: destinationFeasibility.transitSummary.trainTime || '8h',
+    driveDuration: destinationFeasibility.transitSummary.driveTime || '10h'
+  }), [effectiveStartCity, selectedDestination.name, travelMode, destinationFeasibility, aiDestinationInfo?.distanceKm]);
+
+  // AI Real-Trip Budget Fetcher based on crowdsourced traveler logs
+  const loadAiBudget = useCallback(
+    async (forced: boolean = false) => {
+      const destName = selectedDestinationPlace?.name || selectedDestination.name;
+      if (!destName) return;
+
+      setIsFetchingAiBudget(true);
+      try {
+        const result = await fetchAiRealTripBudget({
+          destination: destName,
+          startCity: effectiveStartCity,
+          durationDays,
+          travellersCount,
+          travelMode,
+          companionType,
+          distanceKm: currentRouteDetails.distanceKm
+        });
+        setAiBudgetResult(result);
+        const tierData = result.tiers[budgetTier];
+        if (tierData && (forced || customBudget === 30000 || !customBudget)) {
+          setCustomBudget(tierData.totalCost);
+        }
+      } catch (err) {
+        console.error('Failed to load AI real-trip budget:', err);
+      } finally {
+        setIsFetchingAiBudget(false);
+      }
+    },
+    [
+      selectedDestinationPlace?.name,
+      selectedDestination.name,
+      effectiveStartCity,
+      durationDays,
+      travellersCount,
+      travelMode,
+      companionType,
+      currentRouteDetails.distanceKm,
+      budgetTier,
+      customBudget
+    ]
+  );
+
+  // Auto-fetch real trip budget whenever user is on budget step or changes key variables
+  useEffect(() => {
+    if (currentStep === 5 || currentStep === 4) {
+      loadAiBudget();
+    }
+  }, [
+    currentStep,
+    selectedDestinationPlace?.name,
+    selectedDestination.name,
+    durationDays,
+    travellersCount,
+    travelMode,
+    companionType
+  ]);
 
   // Browser Geolocation Detector
   const handleDetectLocation = () => {
@@ -424,6 +608,13 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
     );
   };
 
+  // Automatically request GPS location on initial wizard mount if not already set
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation && !startCity && !detectedLocationData) {
+      handleDetectLocation();
+    }
+  }, []);
+
   const handleNext = () => {
     if (currentStep === 1 && !selectedDestinationPlace) {
       return;
@@ -431,7 +622,8 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
 
     if (currentStep < totalSteps) {
       if (currentStep === 4) {
-        // Entering Step 5 (Budget): calculate default based on selected tier, destination, duration, travellers, travelMode, and route distance
+        // Entering Step 5 (Budget): calculate default based on selected tier and trigger AI real-trip load
+        loadAiBudget();
         setCustomBudget(
           calculateTierBudget(
             budgetTier,
@@ -878,42 +1070,161 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
-                {/* 1. TRIP DURATION */}
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-3">
-                    Trip Duration
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {[
-                      { days: 3, label: '3 Days', sub: '2 Nights', isPlus: false },
-                      { days: 4, label: '4 Days', sub: '3 Nights', isPlus: false },
-                      { days: 5, label: '5 Days', sub: '4 Nights', isPlus: false },
-                      { days: 6, label: '6+ Days', sub: '5+ Nights', isPlus: true }
-                    ].map((opt) => {
-                      const isSelected = opt.isPlus ? durationDays >= 6 : durationDays === opt.days;
-                      return (
-                        <button
-                          key={opt.days}
-                          type="button"
-                          onClick={() => {
-                            setDurationDays(opt.days);
-                            setEndDate(getCalculatedEndDate(startDate, opt.days));
-                          }}
-                          className={`wizard-option-btn py-3.5 px-4 rounded-2xl border-2 text-center transition-all ${isSelected
-                              ? 'is-selected border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-xs'
-                              : 'border-slate-200 text-slate-700 hover:border-slate-300 font-medium'
+                {/* AI DESTINATION & LOGISTICS INTELLIGENCE BANNER */}
+                <div className="p-4 rounded-3xl bg-gradient-to-r from-emerald-950/80 via-slate-900 to-teal-950/80 border border-emerald-500/40 text-white shadow-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg border border-emerald-500/30">
+                        ✨
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-extrabold text-white flex items-center gap-1.5">
+                          <span>AI Destination & Route Intelligence</span>
+                          {isLoadingAiInfo && <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />}
+                        </h3>
+                        <p className="text-[11px] text-slate-300">
+                          {selectedDestination.name} • {effectiveStartCity} ➔ {selectedDestination.name}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="px-2.5 py-1 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-wider">
+                        AI Recommended
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    {/* Minimum Days Recommendation */}
+                    <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800 space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-amber-300 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Minimum Required Days</span>
+                        </span>
+                        <span className="font-black text-white bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 rounded-md text-[11px]">
+                          {aiDestinationInfo?.minimumRequiredDays || destinationFeasibility.minDurationDays} Days
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-snug">
+                        {aiDestinationInfo?.durationReason || destinationFeasibility.minDurationReason}
+                      </p>
+                    </div>
+
+                    {/* Recommended Travel Mode */}
+                    <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800 space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-emerald-300 flex items-center gap-1">
+                          <Navigation className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Optimal Travel Mode</span>
+                        </span>
+                        <span className="font-black text-slate-950 bg-emerald-400 px-2 py-0.5 rounded-md text-[11px]">
+                          {aiDestinationInfo?.recommendedTravelMode || travelMode}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-snug">
+                        {aiDestinationInfo?.recommendedTravelModeReason || `${travelMode} offers the most balanced speed and flexibility for this route.`}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Transfer & Switching Guidance */}
+                  {aiDestinationInfo?.transferAndSwitchTips && (
+                    <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-750 text-xs space-y-1">
+                      <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-teal-300">
+                        <span>🔄 Route Transfers & Transit Switches:</span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed pl-1">
+                        {aiDestinationInfo.transferAndSwitchTips}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Highlights Coverable */}
+                  {aiDestinationInfo?.highlightsInMinDays && aiDestinationInfo.highlightsInMinDays.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Top Highlights:</span>
+                      {aiDestinationInfo.highlightsInMinDays.map((h, i) => (
+                        <span key={i} className="px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-750 text-[10px] font-medium text-slate-200">
+                          ✓ {h}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 1. TRIP DURATION SELECTOR */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                      Choose Trip Duration
+                    </label>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full shadow-xs">
+                      <Clock className="w-3 h-3 text-emerald-700" />
+                      AI Min: {aiDestinationInfo?.minimumRequiredDays || destinationFeasibility.minDurationDays} Days (Ideal: {aiDestinationInfo?.idealDays || (destinationFeasibility.minDurationDays + 2)} Days)
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                    {(() => {
+                      const minDays = aiDestinationInfo?.minimumRequiredDays || destinationFeasibility.minDurationDays;
+                      const durationOptions = [
+                        {
+                          days: minDays,
+                          label: `${minDays} Days`,
+                          sub: `${minDays - 1} Nights (AI Min)`,
+                          isPlus: false
+                        },
+                        {
+                          days: minDays + 1,
+                          label: `${minDays + 1} Days`,
+                          sub: `${minDays} Nights`,
+                          isPlus: false
+                        },
+                        {
+                          days: minDays + 2,
+                          label: `${minDays + 2} Days`,
+                          sub: `${minDays + 1} Nights (Ideal)`,
+                          isPlus: false
+                        },
+                        {
+                          days: minDays + 3,
+                          label: `${minDays + 3}+ Days`,
+                          sub: `${minDays + 2}+ Nights`,
+                          isPlus: true
+                        }
+                      ];
+
+                      return durationOptions.map((opt) => {
+                        const isSelected = opt.isPlus
+                          ? durationDays >= opt.days
+                          : durationDays === opt.days;
+                        return (
+                          <button
+                            key={opt.days}
+                            type="button"
+                            onClick={() => {
+                              setDurationDays(opt.days);
+                              setEndDate(getCalculatedEndDate(startDate, opt.days));
+                            }}
+                            className={`wizard-option-btn py-3.5 px-4 rounded-2xl border-2 text-center transition-all cursor-pointer ${
+                              isSelected
+                                ? 'is-selected border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-xs ring-2 ring-emerald-500/20'
+                                : 'border-slate-200 text-slate-700 hover:border-slate-300 font-medium bg-white'
                             }`}
-                        >
-                          <span className="text-lg block font-extrabold">{opt.label}</span>
-                          <span className="text-[11px] text-slate-500">{opt.sub}</span>
-                        </button>
-                      );
-                    })}
+                          >
+                            <span className="text-lg block font-extrabold">{opt.label}</span>
+                            <span className="text-[11px] text-slate-500">{opt.sub}</span>
+                          </button>
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
 
                 {/* 2. DATE INPUTS */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="text-xs font-bold text-slate-700">
@@ -923,8 +1234,9 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                         type="button"
                         onClick={() => {
                           const today = getTodayFormattedDate();
+                          const minReq = aiDestinationInfo?.minimumRequiredDays || destinationFeasibility.minDurationDays;
                           setStartDate(today);
-                          setEndDate(getCalculatedEndDate(today, durationDays));
+                          setEndDate(getCalculatedEndDate(today, Math.max(durationDays, minReq)));
                         }}
                         className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
                       >
@@ -936,12 +1248,14 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                       value={startDate}
                       onChange={(e) => {
                         const newStart = e.target.value;
+                        const minReq = aiDestinationInfo?.minimumRequiredDays || destinationFeasibility.minDurationDays;
                         setStartDate(newStart);
                         if (newStart && endDate) {
-                          if (newStart > endDate) {
-                            setEndDate(getCalculatedEndDate(newStart, durationDays));
+                          const calculatedDays = getCalculatedDaysBetween(newStart, endDate);
+                          if (calculatedDays < minReq) {
+                            setDurationDays(minReq);
+                            setEndDate(getCalculatedEndDate(newStart, minReq));
                           } else {
-                            const calculatedDays = getCalculatedDaysBetween(newStart, endDate);
                             setDurationDays(calculatedDays);
                           }
                         }
@@ -956,19 +1270,24 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                         End Date
                       </label>
                       <span className="text-[11px] font-semibold text-slate-500">
-                        {durationDays} {durationDays >= 6 ? 'Days (6+ option)' : durationDays === 1 ? 'Day' : 'Days'}
+                        {durationDays} {durationDays === 1 ? 'Day' : 'Days'}
                       </span>
                     </div>
                     <input
                       type="date"
                       value={endDate}
-                      min={startDate}
+                      min={getCalculatedEndDate(startDate, aiDestinationInfo?.minimumRequiredDays || destinationFeasibility.minDurationDays)}
                       onChange={(e) => {
                         const newEnd = e.target.value;
+                        const minReq = aiDestinationInfo?.minimumRequiredDays || destinationFeasibility.minDurationDays;
                         setEndDate(newEnd);
                         if (startDate && newEnd) {
                           const calculatedDays = getCalculatedDaysBetween(startDate, newEnd);
-                          setDurationDays(calculatedDays);
+                          const safeDays = Math.max(calculatedDays, minReq);
+                          setDurationDays(safeDays);
+                          if (calculatedDays < minReq) {
+                            setEndDate(getCalculatedEndDate(startDate, minReq));
+                          }
                         }
                       }}
                       className="wizard-option-card w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -978,41 +1297,77 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
 
                 {/* 3. MODE OF TRAVEL SELECTOR */}
                 <div className="pt-2">
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
-                      Mode of Travel (From {effectiveStartCity} to {selectedDestination.name})
-                    </label>
-                    <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                        Modes of Travel ({effectiveStartCity} ➔ {selectedDestination.name})
+                      </label>
+                      <span className="text-[11px] text-slate-500 block mt-0.5">
+                        Distance: ~{aiDestinationInfo?.distanceKm || destinationFeasibility.distanceKm} km • {destinationFeasibility.transitSummary.routeNote}
+                      </span>
+                    </div>
+                    <span className="self-start sm:self-auto text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                       Selected: {travelMode}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {TRAVEL_MODES.map((mode) => {
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {travelModesToDisplay.map((mode) => {
                       const isSelected = travelMode === mode.id;
+                      const isAiPick = mode.isRecommended || aiDestinationInfo?.recommendedTravelMode === mode.id;
+
                       return (
                         <button
                           key={mode.id}
                           type="button"
                           id={`travel-mode-${mode.id.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
                           onClick={() => setTravelMode(mode.id)}
-                          className={`wizard-option-btn p-3.5 rounded-2xl border-2 text-left transition-all relative flex flex-col justify-between cursor-pointer ${isSelected
-                              ? 'is-selected border-emerald-600 bg-emerald-50/80 text-emerald-950 font-bold shadow-xs ring-2 ring-emerald-500/20'
+                          className={`wizard-option-btn p-3.5 rounded-2xl border-2 text-left transition-all relative flex flex-col justify-between cursor-pointer ${
+                            isSelected
+                              ? 'is-selected border-emerald-600 bg-emerald-50/90 text-emerald-950 font-bold shadow-xs ring-2 ring-emerald-500/20'
+                              : isAiPick
+                              ? 'border-emerald-300 bg-emerald-50/30 text-slate-800 hover:border-emerald-400 font-medium'
                               : 'border-slate-200 text-slate-700 hover:border-slate-300 bg-white font-medium'
-                            }`}
+                          }`}
                         >
                           <div>
                             <div className="flex items-center justify-between mb-1.5">
                               <span className="text-2xl">{mode.icon}</span>
-                              <span
-                                className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md ${isSelected ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-100 text-slate-600'
+                              <div className="flex items-center gap-1">
+                                {isAiPick && (
+                                  <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-emerald-500 text-slate-950 shadow-xs">
+                                    ⭐ AI Pick
+                                  </span>
+                                )}
+                                <span
+                                  className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md ${
+                                    isSelected ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-100 text-slate-600'
                                   }`}
-                              >
-                                {mode.tag}
-                              </span>
+                                >
+                                  {mode.tag}
+                                </span>
+                              </div>
                             </div>
                             <h4 className="text-xs font-bold text-slate-900">{mode.label}</h4>
                             <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">{mode.desc}</p>
+
+                            {mode.durationEstimate && (
+                              <div className="mt-1.5 text-[10px] font-semibold text-slate-600">
+                                ⏱️ {mode.durationEstimate} {mode.estimatedCostRange ? `• ${mode.estimatedCostRange}` : ''}
+                              </div>
+                            )}
+                            
+                            {mode.hasSwitchOrTransfer && (
+                              <div className="mt-1 text-[9px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-semibold">
+                                🔄 Transfer / Border switch required
+                              </div>
+                            )}
+
+                            {mode.pros && (
+                              <div className="mt-1 text-[9px] text-emerald-700 leading-snug font-medium">
+                                ✓ {mode.pros}
+                              </div>
+                            )}
                           </div>
                           {isSelected && (
                             <div className="mt-2.5 pt-1.5 border-t border-emerald-200 flex items-center gap-1 text-[10px] font-bold text-emerald-800">
@@ -1029,7 +1384,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                 <div className="wizard-option-card p-4 rounded-2xl border border-slate-100 flex items-center gap-3 text-xs text-slate-600">
                   <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>
-                    <strong>Optimal Season:</strong> {selectedDestination.bestMonths} is the ideal time to travel to {selectedDestination.name} with {selectedDestination.climate}.
+                    <strong>Optimal Season:</strong> {aiDestinationInfo?.bestSeasons || selectedDestination.bestMonths} is the ideal time to visit with {selectedDestination.climate}.
                   </span>
                 </div>
               </motion.div>
@@ -1129,14 +1484,18 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
 
             {/* STEP 5: BUDGET */}
             {currentStep === 5 && (() => {
-              const minNeededBudget = calculateTierBudget('Budget', selectedDestination, durationDays, travellersCount, travelMode, currentRouteDetails.distanceKm);
-              const maxBudgetCap = Math.max(minNeededBudget + 20000, calculateTierBudget('Luxury', selectedDestination, durationDays, travellersCount, travelMode, currentRouteDetails.distanceKm) * 1.25);
-              const currentTransitCost = getTravelModeTransitCost(travelMode, budgetTier, durationDays, travellersCount, currentRouteDetails.distanceKm);
+              // Active tier and calculations from AI Real-Trip result or fallback
+              const activeAiTier = aiBudgetResult?.tiers[budgetTier];
+              const minNeededBudget = aiBudgetResult?.tiers.Budget.totalCost || calculateTierBudget('Budget', selectedDestination, durationDays, travellersCount, travelMode, currentRouteDetails.distanceKm);
+              const maxBudgetCap = Math.max(minNeededBudget + 20000, (aiBudgetResult?.tiers.Luxury.totalCost || calculateTierBudget('Luxury', selectedDestination, durationDays, travellersCount, travelMode, currentRouteDetails.distanceKm)) * 1.25);
+              
+              const currentTransitCost = activeAiTier?.breakdown.transit ?? getTravelModeTransitCost(travelMode, budgetTier, durationDays, travellersCount, currentRouteDetails.distanceKm);
               const groundRemaining = Math.max(0, customBudget - currentTransitCost);
-              const staysPortion = Math.round(groundRemaining * 0.45);
-              const foodPortion = Math.round(groundRemaining * 0.35);
-              const activitiesPortion = Math.round(groundRemaining * 0.20);
-              const transitPercent = Math.min(100, Math.round((currentTransitCost / customBudget) * 100));
+              const staysPortion = activeAiTier?.breakdown.stays ?? Math.round(groundRemaining * 0.45);
+              const foodPortion = activeAiTier?.breakdown.food ?? Math.round(groundRemaining * 0.35);
+              const activitiesPortion = activeAiTier?.breakdown.activities ?? Math.round(groundRemaining * 0.15);
+              const miscPortion = activeAiTier?.breakdown.misc ?? Math.max(500, Math.round(groundRemaining * 0.05));
+              const transitPercent = Math.min(100, Math.round((currentTransitCost / Math.max(1, customBudget)) * 100));
 
               return (
                 <motion.div
@@ -1146,93 +1505,136 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                   exit={{ opacity: 0, x: -20 }}
                   className="space-y-6"
                 >
-                  {/* Mode of Travel Impact Callout */}
-                  <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200/90 shadow-xs space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">
-                          {travelMode === 'Flight' ? '✈️' : travelMode === 'Train' ? '🚆' : travelMode === 'Car / Road Trip' ? '🚗' : travelMode === 'Bus' ? '🚌' : travelMode === 'Bike / Motorcycle' ? '🏍️' : '🚙'}
-                        </span>
+                  {/* AI Real-Trip Calibrator Banner */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50/70 to-blue-50/60 border border-emerald-200/90 shadow-xs space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          {isFetchingAiBudget ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : (
+                            <Bot className="w-5 h-5" />
+                          )}
+                        </div>
                         <div>
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs font-extrabold text-emerald-950 uppercase tracking-wider">
-                              Budget Calibrated for {travelMode} ({effectiveStartCity} ➔ {selectedDestination.name})
+                              AI Real-Trip Pricing Calibrator
                             </span>
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-200 text-emerald-900">
-                              {travellersCount} {travellersCount === 1 ? 'Traveller' : 'Travellers'}
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200/90 text-emerald-900 flex items-center gap-1">
+                              <Sparkles className="w-2.5 h-2.5" />
+                              {aiBudgetResult?.isAiGenerated ? 'Gemini AI Verified' : 'Crowdsourced Benchmarks'}
                             </span>
                           </div>
                           <p className="text-[11px] text-emerald-800 mt-0.5">
-                            {travelMode === 'Flight' && `Includes roundtrip airfares + airport cab transfers for ${travellersCount} pax.`}
-                            {travelMode === 'Train' && `Includes express rail reservations + local station transit for ${travellersCount} pax.`}
-                            {travelMode === 'Car / Road Trip' && `Includes highway fuel (${currentRouteDetails.distanceKm * 2} km RT) + FASTag toll allocation across ${travellersCount} pax.`}
-                            {travelMode === 'Bus' && `Includes AC Volvo sleeper intercity fares for ${travellersCount} pax.`}
-                            {travelMode === 'Bike / Motorcycle' && `Includes bike rental + fuel for ${Math.ceil(travellersCount / 2)} motorcycle(s) over ${durationDays} days.`}
-                            {travelMode === 'Self-Drive Rental' && `Includes self-drive SUV rental + fuel for ${durationDays} days.`}
+                            {isFetchingAiBudget
+                              ? `AI is analyzing real traveler expense logs & stay rates for ${selectedDestination.name}...`
+                              : `Calculated from ${aiBudgetResult?.crowdsourcedSampleCount || 350}+ real traveler itineraries in ${selectedDestination.name} with ${travelMode} for ${travellersCount} pax.`}
                           </p>
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <span className="text-xs font-bold text-emerald-800 block">Est. Transit</span>
-                        <span className="text-sm font-extrabold text-emerald-950">₹{currentTransitCost.toLocaleString()}</span>
+
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => loadAiBudget(true)}
+                          disabled={isFetchingAiBudget}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-300 font-bold text-xs shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isFetchingAiBudget ? 'animate-spin' : ''}`} />
+                          <span>{isFetchingAiBudget ? 'Calculating...' : 'Recalculate AI'}</span>
+                        </button>
                       </div>
                     </div>
 
                     {/* Quick Mode Switcher in Budget Step */}
-                    <div className="pt-2 border-t border-emerald-200/60">
-                      <span className="text-[10px] font-bold text-emerald-900 block mb-1.5 uppercase tracking-wider">
-                        Switch Mode of Travel to Compare:
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {TRAVEL_MODES.map((m) => {
+                    <div className="pt-2 border-t border-emerald-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold text-emerald-900 uppercase tracking-wider">
+                          Transit Mode:
+                        </span>
+                        {destinationFeasibility.availableTravelModes.map((m) => {
                           const isCurrent = travelMode === m.id;
-                          const modeCost = calculateTierBudget(budgetTier, selectedDestination, durationDays, travellersCount, m.id, currentRouteDetails.distanceKm);
                           return (
                             <button
                               key={m.id}
                               type="button"
                               onClick={() => {
                                 setTravelMode(m.id);
-                                setCustomBudget(modeCost);
                               }}
-                              className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${isCurrent
+                              className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                                isCurrent
                                   ? 'bg-emerald-700 text-white shadow-xs'
                                   : 'bg-white/80 hover:bg-white text-slate-700 border border-emerald-200/80 hover:border-emerald-300'
-                                }`}
+                              }`}
                             >
                               <span>{m.icon}</span>
                               <span>{m.label}</span>
-                              <span className={`text-[10px] ml-0.5 ${isCurrent ? 'text-emerald-200' : 'text-slate-500'}`}>
-                                (₹{modeCost.toLocaleString()})
-                              </span>
                             </button>
                           );
                         })}
                       </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] font-semibold text-emerald-800 block">Est. Roundtrip Transit</span>
+                        <span className="text-xs font-extrabold text-emerald-950">₹{currentTransitCost.toLocaleString()} ({transitPercent}%)</span>
+                      </div>
                     </div>
                   </div>
 
+                  {/* Budget Tier Selection (Budget, Moderate, Premium, Luxury) */}
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                        Budget Tier
-                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                          Select AI Trip Budget Tier
+                        </label>
+                        <span className="text-[10px] text-slate-400">({durationDays} Days / {travellersCount} {travellersCount === 1 ? 'Person' : 'People'})</span>
+                      </div>
                       <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                        Min for {selectedDestination.name} ({durationDays}D, {travelMode}): ₹{minNeededBudget.toLocaleString()}
+                        Min Baseline: ₹{minNeededBudget.toLocaleString()}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                       {(
                         [
-                          { tier: 'Budget', icon: '🪙', note: 'Hostels, local food & economical transit', label: 'Minimum Needed' },
-                          { tier: 'Moderate', icon: '💳', note: 'Boutique stays & comfortable transit', label: 'Standard' },
-                          { tier: 'Premium', icon: '💎', note: 'Resorts & upgraded travel', label: 'Upgraded' },
-                          { tier: 'Luxury', icon: '👑', note: '5-star villas & premier travel', label: 'All-Inclusive' }
-                        ] as { tier: BudgetTier; icon: string; note: string; label: string }[]
+                          {
+                            tier: 'Budget' as BudgetTier,
+                            icon: '🪙',
+                            subtitle: 'Hostels, Dhabas & Shared Transit',
+                            badge: 'Minimum Needed',
+                            color: 'amber'
+                          },
+                          {
+                            tier: 'Moderate' as BudgetTier,
+                            icon: '💳',
+                            subtitle: '3-Star Boutique, Cafes & Cabs',
+                            badge: 'Popular Choice',
+                            color: 'emerald'
+                          },
+                          {
+                            tier: 'Premium' as BudgetTier,
+                            icon: '💎',
+                            subtitle: '4-Star Resorts & Private Chauffeured',
+                            badge: 'Upgraded',
+                            color: 'blue'
+                          },
+                          {
+                            tier: 'Luxury' as BudgetTier,
+                            icon: '👑',
+                            subtitle: '5-Star Heritage, Gourmet & VIP',
+                            badge: 'All-Inclusive',
+                            color: 'purple'
+                          }
+                        ]
                       ).map((b) => {
-                        const tierAmount = calculateTierBudget(b.tier, selectedDestination, durationDays, travellersCount, travelMode, currentRouteDetails.distanceKm);
+                        const tierInfo = aiBudgetResult?.tiers[b.tier];
+                        const tierAmount = tierInfo?.totalCost || calculateTierBudget(b.tier, selectedDestination, durationDays, travellersCount, travelMode, currentRouteDetails.distanceKm);
+                        const perPerson = tierInfo?.perPersonCost || Math.round(tierAmount / travellersCount);
+                        const perDay = tierInfo?.perDayPerPerson || Math.round(perPerson / durationDays);
                         const isSelected = budgetTier === b.tier;
+
                         return (
                           <button
                             key={b.tier}
@@ -1241,28 +1643,60 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                               setBudgetTier(b.tier);
                               setCustomBudget(tierAmount);
                             }}
-                            className={`wizard-option-btn p-4 rounded-2xl border-2 text-left transition-all flex flex-col justify-between ${isSelected
-                                ? 'is-selected border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-xs'
-                                : 'border-slate-200 text-slate-700 hover:border-slate-300 font-medium'
-                              }`}
+                            className={`wizard-option-btn p-4 rounded-2xl border-2 text-left transition-all flex flex-col justify-between relative overflow-hidden ${
+                              isSelected
+                                ? 'is-selected border-emerald-600 bg-emerald-50/90 text-emerald-950 font-bold shadow-md ring-2 ring-emerald-500/20'
+                                : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700 font-medium hover:bg-slate-50/60 shadow-2xs'
+                            }`}
                           >
-                            <div>
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-2xl block">{b.icon}</span>
-                                {b.tier === 'Budget' && (
-                                  <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
-                                    Min
-                                  </span>
-                                )}
+                            {isSelected && (
+                              <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-bl-lg flex items-center gap-1">
+                                <Check className="w-2.5 h-2.5" /> Selected
                               </div>
-                              <h4 className="text-sm font-bold">{b.tier}</h4>
-                              <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">{b.note}</p>
+                            )}
+
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-2xl">{b.icon}</span>
+                                <span
+                                  className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border ${
+                                    b.tier === 'Budget'
+                                      ? 'bg-amber-50 text-amber-900 border-amber-300'
+                                      : b.tier === 'Moderate'
+                                      ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                                      : b.tier === 'Premium'
+                                      ? 'bg-blue-50 text-blue-900 border-blue-300'
+                                      : 'bg-purple-50 text-purple-900 border-purple-300'
+                                  }`}
+                                >
+                                  {b.badge}
+                                </span>
+                              </div>
+
+                              <h4 className="text-base font-extrabold">{b.tier}</h4>
+                              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug line-clamp-2">
+                                {tierInfo?.stayDescription ? tierInfo.stayDescription.split('(')[0] : b.subtitle}
+                              </p>
+
+                              {/* Persona Tag */}
+                              <div className="mt-2">
+                                <span className="inline-block text-[9px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                                  👤 {tierInfo?.spendingPersona || 'Real travelers'}
+                                </span>
+                              </div>
                             </div>
-                            <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-baseline justify-between">
-                              <span className="text-[10px] text-slate-500 font-semibold">{b.label}</span>
-                              <span className="text-xs font-extrabold" style={{ color: '#003f6d' }}>
-                                ₹{tierAmount.toLocaleString()}
-                              </span>
+
+                            <div className="mt-3.5 pt-2.5 border-t border-slate-200/70">
+                              <div className="flex items-baseline justify-between">
+                                <span className="text-xs text-slate-500 font-semibold">Total Trip</span>
+                                <span className="text-sm font-black text-emerald-900">
+                                  ₹{tierAmount.toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-[10px] text-slate-500 mt-0.5">
+                                <span>Per person</span>
+                                <span className="font-semibold text-slate-700">₹{perPerson.toLocaleString()} (₹{perDay.toLocaleString()}/d)</span>
+                              </div>
                             </div>
                           </button>
                         );
@@ -1270,86 +1704,151 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
                     </div>
                   </div>
 
-                  {/* Approximate Total Budget Input */}
-                  <div className="wizard-option-card p-5 rounded-2xl border border-slate-200 space-y-4">
-                    <div className="flex items-center justify-between">
+                  {/* Approximate Total Budget Input Slider */}
+                  <div className="wizard-option-card p-5 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-2xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
-                        <label className="text-xs font-bold text-slate-800 block">
-                          Total Trip Budget (INR ₹)
-                        </label>
-                        <p className="text-[11px] text-slate-500">
-                          {budgetTier === 'Budget'
-                            ? `Calculated baseline minimum required for ${selectedDestination.name} with ${travelMode} over ${durationDays} days.`
-                            : `Adjust your planned spending cap across travel, stays, food & activities.`}
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs font-bold text-slate-800 block uppercase tracking-wider">
+                            Total Planned Trip Budget (INR ₹)
+                          </label>
+                          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                            {budgetTier} Tier Active
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Slide to calibrate custom spending or use AI benchmark for {selectedDestination.name}.
                         </p>
                       </div>
-                      <span className="font-extrabold text-emerald-700" style={{ fontSize: '21px' }}>
-                        ₹{customBudget.toLocaleString()} Total
-                      </span>
+                      <div className="text-left sm:text-right">
+                        <span className="font-black text-emerald-800 text-2xl block">
+                          ₹{customBudget.toLocaleString()}
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          ≈ ₹{Math.round(customBudget / travellersCount).toLocaleString()} / person (₹{Math.round(customBudget / (travellersCount * durationDays)).toLocaleString()} / day)
+                        </span>
+                      </div>
                     </div>
 
                     <input
                       type="range"
                       min={minNeededBudget}
                       max={maxBudgetCap}
-                      step={1000}
+                      step={500}
                       value={Math.max(minNeededBudget, customBudget)}
                       onChange={(e) => setCustomBudget(Number(e.target.value))}
-                      className="w-full accent-emerald-600 cursor-pointer"
+                      className="w-full accent-emerald-600 cursor-pointer h-2 bg-slate-200 rounded-lg"
                     />
 
                     <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
-                      <span className="font-semibold text-emerald-900">₹{minNeededBudget.toLocaleString()} (Minimum)</span>
-                      <span style={{ fontSize: '20px', color: '#0369a1' }}>₹{Math.round(customBudget / travellersCount).toLocaleString()} / person</span>
-                      <span style={{ color: '#0369a1' }}>₹{Math.round(maxBudgetCap).toLocaleString()}</span>
+                      <span className="font-semibold text-emerald-900">₹{minNeededBudget.toLocaleString()} (Min Required)</span>
+                      <span className="font-bold text-slate-700">{travellersCount} Travellers • {durationDays} Days</span>
+                      <span className="font-semibold text-slate-600">₹{Math.round(maxBudgetCap).toLocaleString()} (Luxury Cap)</span>
                     </div>
 
-                    {/* Estimated Cost Breakdown Bar & Chips */}
-                    <div className="pt-3 border-t border-slate-100 space-y-2">
+                    {/* AI Real-Trip Expense Breakdown Grid */}
+                    <div className="pt-3.5 border-t border-slate-100 space-y-2.5">
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-bold text-slate-700">Estimated Spending Allocation:</span>
-                        <span className="text-slate-500 font-semibold">{durationDays} Days / {travellersCount} Travellers</span>
+                        <span className="font-extrabold text-slate-800 flex items-center gap-1.5">
+                          <Coins className="w-3.5 h-3.5 text-emerald-600" />
+                          Real Traveler Spending Allocation ({budgetTier} Tier):
+                        </span>
+                        <span className="text-slate-500 font-semibold">{durationDays} Days / {travellersCount} Pax</span>
                       </div>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                        <div className="p-2 rounded-xl bg-blue-50/80 border border-blue-100">
-                          <div className="text-[10px] font-bold flex items-center gap-1" style={{ color: '#003f6d' }}>
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                        <div className="p-2.5 rounded-xl bg-blue-50/80 border border-blue-100">
+                          <div className="text-[10px] font-bold flex items-center gap-1 text-blue-900">
                             <span>{travelMode === 'Flight' ? '✈️' : travelMode === 'Train' ? '🚆' : travelMode === 'Car / Road Trip' ? '🚗' : travelMode === 'Bus' ? '🚌' : travelMode === 'Bike / Motorcycle' ? '🏍️' : '🚙'}</span>
-                            <span style={{ color: '#003f6d' }}>{travelMode} Transit ({transitPercent}%)</span>
+                            <span>Transit</span>
                           </div>
-                          <div className="text-xs font-extrabold mt-0.5" style={{ color: '#003f6d' }}>
-                            <span style={{ color: '#003f6d' }}>₹{currentTransitCost.toLocaleString()}</span>
+                          <div className="text-xs font-black mt-1 text-blue-950">
+                            ₹{currentTransitCost.toLocaleString()}
+                          </div>
+                          <div className="text-[9px] text-blue-700/80 mt-0.5 truncate">
+                            {activeAiTier?.transitDescription || `${travelMode} RT`}
                           </div>
                         </div>
 
-                        <div className="p-2 rounded-xl bg-indigo-50/80 border border-indigo-100">
-                          <div className="text-[10px] font-bold flex items-center gap-1" style={{ color: '#003f6d' }}>
+                        <div className="p-2.5 rounded-xl bg-indigo-50/80 border border-indigo-100">
+                          <div className="text-[10px] font-bold flex items-center gap-1 text-indigo-900">
                             <span>🏨</span>
-                            <span style={{ color: '#003f6d' }}>Stays & Hotels</span>
+                            <span>Stays</span>
                           </div>
-                          <div className="text-xs font-extrabold mt-0.5" style={{ color: '#003f6d' }}>
-                            <span style={{ color: '#003f6d' }}>₹{staysPortion.toLocaleString()}</span>
+                          <div className="text-xs font-black mt-1 text-indigo-950">
+                            ₹{staysPortion.toLocaleString()}
+                          </div>
+                          <div className="text-[9px] text-indigo-700/80 mt-0.5 truncate">
+                            {activeAiTier?.stayDescription || 'Accommodations'}
                           </div>
                         </div>
 
-                        <div className="p-2 rounded-xl bg-amber-50/80 border border-amber-100">
-                          <div className="text-[10px] font-bold flex items-center gap-1" style={{ color: '#003f6d' }}>
+                        <div className="p-2.5 rounded-xl bg-amber-50/80 border border-amber-100">
+                          <div className="text-[10px] font-bold flex items-center gap-1 text-amber-900">
                             <span>🍽️</span>
-                            <span style={{ color: '#003f6d' }}>Food & Dining</span>
+                            <span>Dining</span>
                           </div>
-                          <div className="text-xs font-extrabold mt-0.5" style={{ color: '#003f6d' }}>
-                            <span style={{ color: '#003f6d' }}>₹{foodPortion.toLocaleString()}</span>
+                          <div className="text-xs font-black mt-1 text-amber-950">
+                            ₹{foodPortion.toLocaleString()}
+                          </div>
+                          <div className="text-[9px] text-amber-700/80 mt-0.5 truncate">
+                            {activeAiTier?.foodDescription || 'Food & snacks'}
                           </div>
                         </div>
 
-                        <div className="p-2 rounded-xl bg-purple-50/80 border border-purple-100">
-                          <div className="text-[10px] font-bold flex items-center gap-1" style={{ color: '#003f6d' }}>
+                        <div className="p-2.5 rounded-xl bg-purple-50/80 border border-purple-100">
+                          <div className="text-[10px] font-bold flex items-center gap-1 text-purple-900">
                             <span>🎟️</span>
-                            <span style={{ color: '#003f6d' }}>Activities & Sights</span>
+                            <span>Activities</span>
                           </div>
-                          <div className="text-xs font-extrabold mt-0.5" style={{ color: '#003f6d' }}>
-                            <span style={{ color: '#003f6d' }}>₹{activitiesPortion.toLocaleString()}</span>
+                          <div className="text-xs font-black mt-1 text-purple-950">
+                            ₹{activitiesPortion.toLocaleString()}
                           </div>
+                          <div className="text-[9px] text-purple-700/80 mt-0.5 truncate">
+                            Passes, entry & tours
+                          </div>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-emerald-50/80 border border-emerald-100 col-span-2 sm:col-span-1">
+                          <div className="text-[10px] font-bold flex items-center gap-1 text-emerald-900">
+                            <span>🛍️</span>
+                            <span>Buffer & Misc</span>
+                          </div>
+                          <div className="text-xs font-black mt-1 text-emerald-950">
+                            ₹{miscPortion.toLocaleString()}
+                          </div>
+                          <div className="text-[9px] text-emerald-700/80 mt-0.5 truncate">
+                            Local snacks & shopping
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Real Traveler Log Quote & Insider Savings Hack */}
+                    <div className="pt-3 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
+                      {activeAiTier?.realTravellerLog && (
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start gap-2">
+                          <span className="text-base">💬</span>
+                          <div>
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700 block">
+                              Real Traveler Expense Log
+                            </span>
+                            <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                              "{activeAiTier.realTravellerLog}"
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/70 flex items-start gap-2">
+                        <Lightbulb className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-900 block">
+                            Real Traveler Cost-Saving Tip
+                          </span>
+                          <p className="text-[11px] text-amber-900/90 mt-0.5 leading-relaxed">
+                            {aiBudgetResult?.moneySavingTip || 'Book local scooter/car rentals or local buses at arrival instead of hiring standard tourist taxis.'}
+                          </p>
                         </div>
                       </div>
                     </div>

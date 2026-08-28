@@ -297,3 +297,39 @@ export interface ThemeConfig {
     };
   };
 }
+
+export interface RealTripCostBreakdown {
+  transit: number;
+  stays: number;
+  food: number;
+  activities: number;
+  misc: number;
+}
+
+export interface RealTripTierData {
+  tier: BudgetTier;
+  totalCost: number;
+  perPersonCost: number;
+  perDayPerPerson: number;
+  breakdown: RealTripCostBreakdown;
+  stayDescription: string;
+  foodDescription: string;
+  transitDescription: string;
+  realTravellerLog: string;
+  spendingPersona: string;
+}
+
+export interface RealTripBudgetResult {
+  destination: string;
+  startCity: string;
+  currency: string;
+  travelMode: TravelMode;
+  durationDays: number;
+  travellersCount: number;
+  tiers: Record<BudgetTier, RealTripTierData>;
+  moneySavingTip: string;
+  crowdsourcedSampleCount: number;
+  peakSeasonNote: string;
+  aiConfidence: string;
+  isAiGenerated: boolean;
+}

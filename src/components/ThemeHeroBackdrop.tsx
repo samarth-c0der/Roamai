@@ -26,11 +26,11 @@ const COLOR_GRADE_PRESETS: Record<string, ColorGradePreset> = {
     highlightTint: 'radial-gradient(ellipse at 60% 30%, rgba(2, 132, 199, 0.18) 0%, rgba(13, 148, 136, 0.10) 50%, transparent 80%)'
   },
   snow: {
-    // Crisp alpine glacial grading: diamond whites, pure cyan sky, high-contrast mountain ridgelines
-    filter: 'brightness(1.06) contrast(1.16) saturate(1.22) hue-rotate(3deg)',
-    sunFlare: 'radial-gradient(circle at 80% 15%, rgba(240, 249, 255, 0.60) 0%, rgba(56, 189, 248, 0.28) 35%, transparent 70%)',
-    shadowTint: 'linear-gradient(to top right, rgba(30, 58, 138, 0.25) 0%, transparent 60%)',
-    highlightTint: 'radial-gradient(ellipse at 65% 25%, rgba(14, 165, 233, 0.30) 0%, rgba(99, 102, 241, 0.16) 55%, transparent 80%)'
+    // Cinematic alpine snow mountain grading: deep sapphire sky, crisp diamond peaks, rich shadow depth
+    filter: 'brightness(0.98) contrast(1.12) saturate(1.18)',
+    sunFlare: 'radial-gradient(circle at 80% 12%, rgba(224, 242, 254, 0.35) 0%, rgba(56, 189, 248, 0.15) 35%, transparent 65%)',
+    shadowTint: 'linear-gradient(to top right, rgba(15, 23, 42, 0.30) 0%, transparent 60%)',
+    highlightTint: 'radial-gradient(ellipse at 65% 20%, rgba(14, 165, 233, 0.20) 0%, transparent 70%)'
   },
   mountain: {
     // 100% Lush Green Mountain in Ultra HD: crystal-clear clarity, vibrant green pine forest, crisp sky

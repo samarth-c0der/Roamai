@@ -159,10 +159,10 @@ export const THEME_OPTIONS: ThemeConfig[] = [
   },
   {
     id: 'trekking',
-    name: 'Rainforest Theme',
-    vibe: 'Misty Cloud Forests & Biodiversity Canopy',
-    tagline: 'Misty canopy trails and plantations',
-    icon: '🌳',
+    name: 'Trekking Theme',
+    vibe: 'Alpine Trails, High Ridges & Wilderness Passes',
+    tagline: 'High alpine trails and backcountry passes',
+    icon: '🥾',
     primaryColor: '#15803d', // green-700
     secondaryColor: '#047857', // emerald-700
     accentColor: '#84cc16', // lime-500
@@ -191,22 +191,22 @@ export const THEME_OPTIONS: ThemeConfig[] = [
     textAccentClass: 'text-green-700',
     swatches: ['#15803d', '#047857', '#84cc16', '#f2f9f3'],
     isDark: false,
-    heroPhotoUrl: 'https://images.unsplash.com/photo-1511497584788-87676104235f?q=90&w=2560&auto=format&fit=crop',
+    heroPhotoUrl: 'https://images.unsplash.com/photo-1627289496743-8a9a08bb228a?q=90&w=2560&auto=format&fit=crop',
     heroPhotoPosition: 'center 40%',
-    heroPhotoTag: '🌳 Dense Misty Rainforest Canopy & Biodiversity Reserves',
+    heroPhotoTag: '🥾 High Mountain Trekking Trails & Alpine Ridges',
     heroFloatingPhotos: [
-      { url: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?q=85&w=800&auto=format&fit=crop', title: 'Rainforest Canopy', location: 'Western Ghats Bio-Reserve • 20°C' },
-      { url: 'https://images.unsplash.com/photo-1511497584788-87676104235f?q=85&w=800&auto=format&fit=crop', title: 'Misty Coffee Groves', location: 'Spice Highlands • 19°C' }
+      { url: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?q=85&w=800&auto=format&fit=crop', title: 'Mountain Ridge Path', location: 'High Alpine Pass • 18°C' },
+      { url: 'https://images.unsplash.com/photo-1627289496743-8a9a08bb228a?q=85&w=800&auto=format&fit=crop', title: 'Wilderness Trek', location: 'Alpine Valley Ridge • 17°C' }
     ],
     previewTrip: {
-      title: 'Rainforest & Plantation Retreat',
-      image: 'https://images.unsplash.com/photo-1511497584788-87676104235f?q=90&w=1200&auto=format&fit=crop',
-      subtitle: '3 Days • 2 Travellers • Wilderness Retreat',
-      budget: '₹18,000 Budget',
-      temp: '19°C 🌿',
-      day1Title: 'Day 1 • Mountain Peak Hike & Organic Tasting',
-      activity1: { time: '07:30 AM', title: 'Mountain Peak Guided Hike', category: 'Adventure', cost: '₹750' },
-      activity2: { time: '02:00 PM', title: 'Organic Spice Plantation & Herbal Tea Tasting', category: 'Food', cost: '₹600' }
+      title: 'Alpine Ridge & Mountain Trek',
+      image: 'https://images.unsplash.com/photo-1627289496743-8a9a08bb228a?q=90&w=1200&auto=format&fit=crop',
+      subtitle: '4 Days • 2 Trekkers • High Ridge Expedition',
+      budget: '₹22,000 Budget',
+      temp: '17°C 🥾',
+      day1Title: 'Day 1 • Ridge Trail Ascent & Valley Campsite',
+      activity1: { time: '06:30 AM', title: 'Alpine Ridge Trail Guided Hike', category: 'Adventure', cost: '₹850' },
+      activity2: { time: '01:00 PM', title: 'Mountain Pass Viewpoint & Trailside Lunch', category: 'Food', cost: '₹450' }
     }
   },
   {
@@ -242,20 +242,20 @@ export const THEME_OPTIONS: ThemeConfig[] = [
     secondaryBtnClass: 'bg-slate-800 text-sky-200 hover:bg-slate-700',
     textAccentClass: 'text-sky-400',
     swatches: ['#0ea5e9', '#6366f1', '#38bdf8', '#090d16'],
-    isDark: true,
-    heroPhotoUrl: 'https://images.unsplash.com/photo-1483921020237-2ff51e8e4b22?q=90&w=2560&auto=format&fit=crop',
+    isDark: false,
+    heroPhotoUrl: 'https://images.unsplash.com/photo-1623057896740-99f8c2f090fc?q=90&w=2560&auto=format&fit=crop',
     heroPhotoPosition: 'center 40%',
-    heroPhotoTag: '❄️ Alpine Snow Glaciers & Powder Slopes • -4°C',
+    heroPhotoTag: '❄️ Alpine Sunset & Snow Mountain Slopes • -3°C',
     heroFloatingPhotos: [
-      { url: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?q=85&w=800&auto=format&fit=crop', title: 'High-Altitude Pass', location: 'Glacial Ridge • -6°C' },
-      { url: 'https://images.unsplash.com/photo-1483921020237-2ff51e8e4b22?q=85&w=800&auto=format&fit=crop', title: 'Powder Slopes', location: 'Valley Peak • -3°C' }
+      { url: 'https://images.unsplash.com/photo-1542332213-31f87348057f?q=85&w=800&auto=format&fit=crop', title: 'High-Altitude Ridge', location: 'Alpine Peak • -6°C' },
+      { url: 'https://images.unsplash.com/photo-1517760444937-f6397edcbbcd?q=85&w=800&auto=format&fit=crop', title: 'Powder Pines', location: 'Glacial Valley • -3°C' }
     ],
     previewTrip: {
-      title: 'Alpine Snow & Winter Expedition',
-      image: 'https://images.unsplash.com/photo-1483921020237-2ff51e8e4b22?q=90&w=1200&auto=format&fit=crop',
+      title: 'Alpine Snow & Sunset Expedition',
+      image: 'https://images.unsplash.com/photo-1623057896740-99f8c2f090fc?q=90&w=1200&auto=format&fit=crop',
       subtitle: '5 Days • 2 Travellers • Alpine Snow Explorer',
       budget: '₹34,000 Budget',
-      temp: '-4°C ❄️',
+      temp: '-3°C ❄️',
       day1Title: 'Day 1 • Alpine Pass Transit & Warm Hearth Dining',
       activity1: { time: '10:30 AM', title: 'Glacial Valley Snow Walk', category: 'Adventure', cost: '₹1,500' },
       activity2: { time: '05:30 PM', title: 'Warm Wooden Cabin Hearth & Hot Mountain Tea', category: 'Relaxation', cost: '₹400' }

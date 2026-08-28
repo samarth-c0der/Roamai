@@ -20,7 +20,7 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-200">
-      <div 
+      <div
         className="rounded-3xl max-w-md w-full shadow-2xl border p-6 relative transition-colors duration-300 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
       >
         {/* Close Button */}
@@ -65,11 +65,10 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
                   borderColor: theme.primaryColor,
                   backgroundColor: `${theme.primaryColor}10`
                 } : undefined}
-                className={`w-full px-4 py-3 rounded-2xl border text-left transition-all flex items-center justify-between cursor-pointer ${
-                  isSelected
-                    ? 'border-cyan-500 font-bold shadow-xs'
-                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60 bg-white dark:bg-slate-900/60 font-medium'
-                }`}
+                className={`w-full px-4 py-3.5 rounded-2xl border text-left transition-all flex items-center justify-between cursor-pointer ${isSelected
+                  ? 'border-cyan-500 font-bold shadow-xs'
+                  : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60 bg-white dark:bg-slate-900/60 font-medium'
+                  }`}
               >
                 <div className="flex items-center gap-3">
                   <span className="text-lg">{theme.icon}</span>

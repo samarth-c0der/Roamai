@@ -26,7 +26,7 @@ interface ActivityCardProps {
   onMoveUp: (activityId: string) => void;
   onMoveDown: (activityId: string) => void;
   onRemove: (activityId: string) => void;
-  onToggleComplete: (activityId: string) => void;
+  onToggleComplete?: (activityId: string) => void;
 }
 
 export const ActivityCard: React.FC<ActivityCardProps> = ({
@@ -173,32 +173,44 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
         {/* Bottom Interactive Toolbar */}
         <div className="mt-4 pt-3 border-t border-slate-200/70 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
           
-          {/* Checkbox completion */}
-          <button
-            onClick={() => onToggleComplete(activity.id)}
-            className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-              activity.completed
-                ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            {activity.completed ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            ) : (
-              <Circle className="w-4 h-4 text-slate-400" />
-            )}
-            <span>{activity.completed ? 'Completed' : 'Mark Visited'}</span>
-          </button>
+          {/* Checkbox completion (Only rendered if onToggleComplete is provided, e.g. in Live/Trip modes) */}
+          {onToggleComplete ? (
+            <button
+              onClick={() => onToggleComplete(activity.id)}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                activity.completed
+                  ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              {activity.completed ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <Circle className="w-4 h-4 text-slate-400" />
+              )}
+              <span>{activity.completed ? 'Completed' : 'Mark Visited'}</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => onOpenDetails(activity)}
+              className="px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>Place Details & Tips</span>
+            </button>
+          )}
 
           {/* Quick action buttons */}
           <div className="flex items-center gap-1">
-            <button
-              onClick={() => onOpenDetails(activity)}
-              className="px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-            >
-              <Info className="w-3.5 h-3.5" />
-              <span>Details</span>
-            </button>
+            {onToggleComplete && (
+              <button
+                onClick={() => onOpenDetails(activity)}
+                className="px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <Info className="w-3.5 h-3.5" />
+                <span>Details</span>
+              </button>
+            )}
 
             <button
               onClick={() => onReplace(activity.id)}

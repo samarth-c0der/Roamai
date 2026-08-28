@@ -20,17 +20,13 @@ interface ActivityDetailsModalProps {
   currency: string;
   onClose: () => void;
   onReplace: (activityId: string) => void;
-  onStartNav: (activity: Activity) => void;
-  onLogExpense?: (activity: Activity) => void;
 }
 
 export const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({
   activity,
   currency,
   onClose,
-  onReplace,
-  onStartNav,
-  onLogExpense
+  onReplace
 }) => {
   if (!activity) return null;
 
@@ -48,7 +44,7 @@ export const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({
           
           <button
             onClick={onClose}
-            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-900/70 hover:bg-slate-900 text-white flex items-center justify-center transition-colors"
+            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-900/70 hover:bg-slate-900 text-white flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -127,42 +123,23 @@ export const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({
         </div>
 
         {/* Modal Footer Actions */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                onReplace(activity.id);
-                onClose();
-              }}
-              className="px-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-white transition-colors flex items-center gap-1.5 cursor-pointer"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Replace</span>
-            </button>
-
-            {onLogExpense && (
-              <button
-                onClick={() => {
-                  onLogExpense(activity);
-                  onClose();
-                }}
-                className="px-3.5 py-2.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-              >
-                <DollarSign className="w-3.5 h-3.5 text-teal-600" />
-                <span>Log Cost ({currency}{activity.estimatedCost})</span>
-              </button>
-            )}
-          </div>
-
+        <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-2">
           <button
             onClick={() => {
-              onStartNav(activity);
+              onReplace(activity.id);
               onClose();
             }}
-            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-white transition-colors flex items-center gap-1.5 cursor-pointer"
           >
-            <Navigation className="w-3.5 h-3.5" />
-            <span>Start Navigation</span>
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Replace Stop</span>
+          </button>
+
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+          >
+            Done
           </button>
         </div>
       </div>

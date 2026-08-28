@@ -30,27 +30,47 @@ export const GroupTravelView: React.FC<GroupTravelViewProps> = ({ trip }) => {
   return (
     <div className="space-y-8 text-left max-w-6xl mx-auto">
       
-      {/* Top Banner */}
-      <div className="bg-gradient-to-r from-teal-700 via-emerald-600 to-cyan-700 rounded-3xl p-6 sm:p-8 text-white shadow-xl">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-teal-200" />
-              <span className="text-xs uppercase font-bold tracking-wider text-teal-100">
-                Group Harmony Engine
+      {/* Top Banner with Centered Collective Vibe Match */}
+      <div className="bg-gradient-to-br from-slate-900 via-teal-950 to-slate-950 rounded-3xl p-6 sm:p-8 text-white shadow-2xl border border-teal-500/30 text-center space-y-6 relative overflow-hidden">
+        {/* Subtle Background Glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Engine Header */}
+        <div className="space-y-2 relative z-10">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/40 text-xs font-bold uppercase tracking-wider shadow-xs">
+            <Users className="w-4 h-4 text-teal-400" />
+            <span>Group Harmony Engine</span>
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+            Group Travel Synergy & Harmony
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-300 max-w-2xl mx-auto leading-relaxed">
+            {compatibility.summary}
+          </p>
+        </div>
+
+        {/* Centered Collective Vibe Match Showcase */}
+        <div className="flex justify-center relative z-10">
+          <div className="p-6 sm:p-7 rounded-3xl bg-slate-900/90 backdrop-blur-xl border-2 border-emerald-400/60 shadow-[0_0_35px_rgba(16,185,129,0.25)] text-center min-w-[260px] sm:min-w-[320px] space-y-2">
+            <span className="text-xs font-black uppercase tracking-widest text-emerald-400 block">
+              Collective Vibe Match
+            </span>
+            <div className="text-4xl sm:text-5xl font-black text-white tracking-tight flex items-center justify-center gap-2">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">
+                {compatibility.overallScore}%
               </span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Group Travel Synergy: {compatibility.overallScore}%
-            </h2>
-            <p className="text-xs sm:text-sm text-teal-50 max-w-2xl leading-relaxed">
-              {compatibility.summary}
-            </p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-center shrink-0">
-            <span className="text-[11px] font-semibold text-teal-100 block">Collective Vibe Match</span>
-            <span className="text-3xl font-black">{compatibility.overallScore}%</span>
+            <div className="pt-2 border-t border-slate-800 flex items-center justify-center gap-2 text-xs font-semibold text-emerald-300">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span>
+                {compatibility.overallScore >= 85
+                  ? 'Super High Cohesion'
+                  : compatibility.overallScore >= 70
+                  ? 'Strong Group Alignment'
+                  : 'Balanced Consensus'}
+                {' '}• {members.length} Travelers in Sync
+              </span>
+            </div>
           </div>
         </div>
       </div>

@@ -1,48 +1,39 @@
 import React, { useState } from 'react';
 import {
   Sparkles,
-  Zap,
   Navigation,
   Users,
   MapPin,
   Calendar,
-  Wallet,
   Sun,
-  CloudRain,
   Plus,
   ArrowRight,
   Share2,
   Download,
   Info,
   CheckCircle2,
-  Sliders,
-  DollarSign
+  Compass
 } from 'lucide-react';
 import { Trip, Activity, DayItinerary, PackingItem, ExpenseItem } from '../types';
 import { ActivityCard } from './ActivityCard';
 import { PreparationView } from './PreparationView';
 import { MapView } from './MapView';
 import { GroupTravelView } from './GroupTravelView';
-import { DayExpenseTracker } from './DayExpenseTracker';
-import { BudgetOverviewTab } from './BudgetOverviewTab';
 
 interface ItineraryViewProps {
   trip: Trip;
   activeDayNumber: number;
   onSelectDay: (dayNumber: number) => void;
-  onOpenAdapt: () => void;
   onEnterTripMode: () => void;
   onOpenActivityDetails: (activity: Activity) => void;
   onReplaceActivity: (activityId: string) => void;
   onMoveActivityUp: (activityId: string) => void;
   onMoveActivityDown: (activityId: string) => void;
   onRemoveActivity: (activityId: string) => void;
-  onToggleActivityComplete: (activityId: string) => void;
+  onToggleActivityComplete?: (activityId: string) => void;
   onAddCustomActivity: (dayNumber: number) => void;
   onTogglePackingItem: (itemId: string) => void;
   onAddPackingItem: (name: string, category: PackingItem['category']) => void;
-  onAddExpense: (expense: Omit<ExpenseItem, 'id' | 'createdAt'>) => void;
-  onDeleteExpense: (expenseId: string) => void;
   onOpenMapSearch?: () => void;
 }
 
@@ -50,22 +41,18 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
   trip,
   activeDayNumber,
   onSelectDay,
-  onOpenAdapt,
   onEnterTripMode,
   onOpenActivityDetails,
   onReplaceActivity,
   onMoveActivityUp,
   onMoveActivityDown,
   onRemoveActivity,
-  onToggleActivityComplete,
   onAddCustomActivity,
   onTogglePackingItem,
   onAddPackingItem,
-  onAddExpense,
-  onDeleteExpense,
   onOpenMapSearch
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'itinerary' | 'map' | 'preparation' | 'group' | 'bookings'>('itinerary');
+  const [activeTab, setActiveTab] = useState<'overview' | 'itinerary' | 'map' | 'preparation' | 'group'>('itinerary');
 
   const days = trip?.days || [];
   const currentDay = days.find(d => d.dayNumber === activeDayNumber) || days[0] || {
@@ -76,16 +63,6 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
     weatherForecast: { temp: '26°C', condition: 'Sunny', icon: 'Sun', rainChance: 10 },
     activities: []
   };
-
-  // Budget calculations
-  const totalActivitiesCost = days.reduce(
-    (acc, day) => acc + (day.activities || []).reduce((dAcc, a) => dAcc + (a.estimatedCost || 0), 0),
-    0
-  );
-  const totalBookingsCost = (trip?.bookings || []).reduce((acc, b) => acc + (b.estimatedCost || 0), 0);
-  const totalEstimatedCost = totalActivitiesCost + totalBookingsCost;
-  const targetBudget = trip?.targetBudget || 25000;
-  const remainingBudget = Math.max(0, targetBudget - totalEstimatedCost);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16 text-left">
@@ -98,8 +75,8 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
             alt={trip.destination}
             className="w-full h-full object-cover"
           />
-          {/* Image with no dark gradient fade */}
-          <div className="absolute inset-0 bg-slate-950/15 pointer-events-none" />
+          {/* Image with subtle overlay */}
+          <div className="absolute inset-0 bg-slate-950/20 pointer-events-none" />
 
           {/* Hero Content */}
           <div className="absolute bottom-6 left-6 right-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -126,9 +103,6 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                     <span>{trip.travelMode}</span>
                   </span>
                 )}
-                <span className="px-3 py-1 rounded-full bg-teal-950/70 text-teal-200 text-xs font-semibold border border-teal-400/50 backdrop-blur-md shadow-xs shadow-teal-500/20">
-                  {trip.currency}{trip.targetBudget.toLocaleString()} Budget
-                </span>
               </div>
 
               <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]">
@@ -157,15 +131,6 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                   <Users className="w-3.5 h-3.5 text-emerald-400" />
                   <span>Group Synergy: <strong>{trip.travellersCount} Travellers</strong></span>
                 </button>
-
-                <button
-                  onClick={() => setActiveTab('bookings')}
-                  className="px-3 py-1 rounded-full bg-amber-950/80 hover:bg-amber-900 text-amber-200 border border-amber-500/40 text-xs font-semibold backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer shadow-xs hover:scale-105"
-                  title="View Budget, Expenses & Split Breakdown"
-                >
-                  <Wallet className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Budget: <strong>{trip.currency}{trip.targetBudget.toLocaleString()}</strong></span>
-                </button>
               </div>
             </div>
 
@@ -174,38 +139,14 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
               <button
                 id="enter-trip-mode-btn"
                 onClick={onEnterTripMode}
-                className="px-4 py-2.5 rounded-xl bg-[#1b4332] hover:bg-[#2d6a4f] text-white font-bold text-xs border border-emerald-500/50 backdrop-blur-md shadow-[0_0_18px_rgba(45,106,79,0.55)] hover:shadow-[0_0_24px_rgba(45,106,79,0.75)] ring-1 ring-emerald-400/30 flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
+                className="px-5 py-3 rounded-2xl bg-[#1b4332] hover:bg-[#2d6a4f] text-white font-bold text-xs sm:text-sm border border-emerald-500/50 backdrop-blur-md shadow-[0_0_18px_rgba(45,106,79,0.55)] hover:shadow-[0_0_24px_rgba(45,106,79,0.75)] ring-2 ring-emerald-400/30 flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
               >
                 <Navigation className="w-4 h-4 text-emerald-300 animate-pulse" />
                 <span>Enter Trip Mode</span>
               </button>
-
-              <button
-                id="adapt-trigger-btn"
-                onClick={onOpenAdapt}
-                className="px-4 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white font-semibold text-xs border border-slate-700 backdrop-blur-md flex items-center gap-1.5 transition-colors cursor-pointer shadow-md"
-              >
-                <Zap className="w-4 h-4 text-teal-400" />
-                <span>Something Changed?</span>
-              </button>
             </div>
           </div>
         </div>
-
-        {/* Adaptation Notification Banner if recently modified */}
-        {trip.adaptationHistory && trip.adaptationHistory.length > 0 && (
-          <div className="bg-gradient-to-r from-teal-900/90 to-emerald-900/90 px-6 py-2 border-t border-teal-500/30 flex items-center justify-between text-xs text-teal-200">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-teal-400" />
-              <span>
-                <strong>Live Adaptation:</strong> {trip.adaptationHistory[0].description}
-              </span>
-            </div>
-            <span className="text-[10px] text-teal-300 font-mono">
-              {trip.adaptationHistory[0].timestamp}
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Main Tabs Navigation Bar */}
@@ -216,8 +157,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
             { id: 'overview', label: 'Trip Overview', icon: Sparkles },
             { id: 'map', label: 'Route Map', icon: MapPin },
             { id: 'preparation', label: 'Preparation & Packing', icon: CheckCircle2 },
-            { id: 'group', label: 'Group Synergy', icon: Users, badge: `${trip.travellersCount || 3} Ppl` },
-            { id: 'bookings', label: 'Budget & Expenses', icon: Wallet, badge: `${trip.currency}${((trip.targetBudget || 0)/1000).toFixed(0)}k` }
+            { id: 'group', label: 'Group Synergy', icon: Users, badge: `${trip.travellersCount || 3} Ppl` }
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -273,18 +213,10 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
 
             <div className="flex items-center gap-2">
               <button
-                onClick={onOpenAdapt}
-                className="px-3.5 py-2 rounded-xl bg-teal-50/90 hover:bg-teal-100 text-teal-900 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-teal-200 shadow-xs"
-              >
-                <Zap className="w-3.5 h-3.5 text-teal-600" />
-                <span>Adapt Day {currentDay?.dayNumber || 1}</span>
-              </button>
-
-              <button
                 onClick={() => onAddCustomActivity(currentDay?.dayNumber || 1)}
-                className="px-3.5 py-2 rounded-xl bg-white/80 hover:bg-white text-slate-800 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-slate-200 shadow-xs"
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5 text-slate-600" />
+                <Plus className="w-3.5 h-3.5" />
                 <span>Add Stop</span>
               </button>
             </div>
@@ -313,52 +245,38 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
             </div>
           </div>
 
-          {/* Side-by-Side Grid: Day Plans (Left) and Day Expense Tracker (Right) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left Column: Scheduled Day Activities Timeline */}
-            <div className="lg:col-span-7 space-y-4">
-              <div className="flex items-center justify-between px-1">
-                <h4 
-                  className="text-sm font-bold text-white flex items-center gap-2"
-                  style={{ textShadow: '0 2px 8px rgba(0,0,0,0.65)' }}
-                >
-                  <Calendar className="w-4 h-4 text-emerald-400" />
-                  <span>Day {currentDay?.dayNumber || 1} Timeline & Stops</span>
-                </h4>
-                <span 
-                  className="text-xs font-semibold text-white/90"
-                  style={{ textShadow: '0 2px 8px rgba(0,0,0,0.65)' }}
-                >
-                  {(currentDay?.activities || []).length} planned stops
-                </span>
-              </div>
-
-              {(currentDay?.activities || []).map((activity, index) => (
-                <ActivityCard
-                  key={activity.id}
-                  activity={activity}
-                  currency={trip?.currency || 'INR'}
-                  isFirst={index === 0}
-                  isLast={index === (currentDay?.activities || []).length - 1}
-                  onOpenDetails={onOpenActivityDetails}
-                  onReplace={onReplaceActivity}
-                  onMoveUp={onMoveActivityUp}
-                  onMoveDown={onMoveActivityDown}
-                  onRemove={onRemoveActivity}
-                  onToggleComplete={onToggleActivityComplete}
-                />
-              ))}
+          {/* Scheduled Day Activities Timeline */}
+          <div className="max-w-4xl mx-auto space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <h4 
+                className="text-sm font-bold text-white flex items-center gap-2"
+                style={{ textShadow: '0 2px 8px rgba(0,0,0,0.65)' }}
+              >
+                <Calendar className="w-4 h-4 text-emerald-400" />
+                <span>Day {currentDay?.dayNumber || 1} Timeline & Stops</span>
+              </h4>
+              <span 
+                className="text-xs font-semibold text-white/90"
+                style={{ textShadow: '0 2px 8px rgba(0,0,0,0.65)' }}
+              >
+                {(currentDay?.activities || []).length} planned stops
+              </span>
             </div>
 
-            {/* Right Column: Day Expense Tracker & Budget Comparison */}
-            <div className="lg:col-span-5 space-y-4">
-              <DayExpenseTracker
-                trip={trip}
-                day={currentDay}
-                onAddExpense={onAddExpense}
-                onDeleteExpense={onDeleteExpense}
+            {(currentDay?.activities || []).map((activity, index) => (
+              <ActivityCard
+                key={activity.id}
+                activity={activity}
+                currency={trip?.currency || 'INR'}
+                isFirst={index === 0}
+                isLast={index === (currentDay?.activities || []).length - 1}
+                onOpenDetails={onOpenActivityDetails}
+                onReplace={onReplaceActivity}
+                onMoveUp={onMoveActivityUp}
+                onMoveDown={onMoveActivityDown}
+                onRemove={onRemoveActivity}
               />
-            </div>
+            ))}
           </div>
         </div>
       )}
@@ -366,86 +284,48 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
       {/* TAB 2: TRIP OVERVIEW */}
       {activeTab === 'overview' && (
         <div className="space-y-8">
-          {/* Top Spending & Summary Breakdown */}
+          {/* Top Summary Breakdown */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
             
-            {/* Left Spending Card */}
+            {/* Left Trip Highlights & Logistics Card */}
             <div className="md:col-span-7 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-3xl p-6 shadow-xl border border-white/80 dark:border-white/15 space-y-4">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Trip Budget & Estimated Spending</h3>
-
-              <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-white/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/70 text-center">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Total Budget</span>
-                  <span className="text-base font-extrabold text-slate-900 dark:text-white">
-                    {trip.currency}{trip.targetBudget.toLocaleString()}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Estimated Cost</span>
-                  <span className="text-base font-extrabold text-emerald-700 dark:text-emerald-400">
-                    {trip.currency}{totalEstimatedCost.toLocaleString()}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Remaining Buffer</span>
-                  <span className="text-base font-extrabold text-teal-600 dark:text-teal-400">
-                    {trip.currency}{remainingBudget.toLocaleString()}
-                  </span>
-                </div>
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Trip Summary & Overview</h3>
+                <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
+                  {trip.durationDays} Days • {trip.travellersCount} Travelers
+                </span>
               </div>
 
-              {/* Category Spending Bars */}
-              <div className="space-y-3 pt-2">
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs font-semibold text-slate-800 dark:text-slate-200">
-                    <span>Accommodation (Villa / Hotel)</span>
-                    <span className="text-slate-900 dark:text-white font-bold">{trip.currency}{Math.round(totalBookingsCost * 0.7).toLocaleString()}</span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: '48%' }} />
-                  </div>
-                </div>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                {trip.clothingAdvice || `Curated ${trip.durationDays}-day personalized travel experience exploring authentic cultural landmarks, scenic landscapes, and culinary gems across ${trip.destination}.`}
+              </p>
 
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs font-semibold text-slate-800 dark:text-slate-200">
-                    <span>Food & Dining</span>
-                    <span className="text-slate-900 dark:text-white font-bold">{trip.currency}{Math.round(totalActivitiesCost * 0.5).toLocaleString()}</span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                    <div className="h-full bg-amber-500 rounded-full" style={{ width: '28%' }} />
-                  </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/70">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Destination</span>
+                  <span className="text-sm font-bold text-slate-900 dark:text-white mt-0.5 block">{trip.destination}</span>
                 </div>
-
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs font-semibold text-slate-800 dark:text-slate-200">
-                    <span>Activities, Tours & Nightlife</span>
-                    <span className="text-slate-900 dark:text-white font-bold">{trip.currency}{Math.round(totalActivitiesCost * 0.35).toLocaleString()}</span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                    <div className="h-full bg-teal-500 rounded-full" style={{ width: '16%' }} />
-                  </div>
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/70">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Transit Mode</span>
+                  <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400 mt-0.5 block">{trip.travelMode || 'Flight'}</span>
                 </div>
-
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs font-semibold text-slate-800 dark:text-slate-200">
-                    <span>Local Transport & Scooters</span>
-                    <span className="text-slate-900 dark:text-white font-bold">{trip.currency}{Math.round(totalBookingsCost * 0.3).toLocaleString()}</span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full" style={{ width: '8%' }} />
-                  </div>
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/70 col-span-2 sm:col-span-1">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Total Planned Stops</span>
+                  <span className="text-sm font-bold text-teal-600 dark:text-teal-400 mt-0.5 block">
+                    {days.reduce((acc, d) => acc + (d.activities || []).length, 0)} Experiences
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Right Preferences Summary */}
+            {/* Right Preferences Blueprint */}
             <div className="md:col-span-5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-3xl p-6 shadow-xl border border-white/80 dark:border-white/15 space-y-4">
               <h3 className="text-base font-bold text-slate-900 dark:text-white">Personalization Blueprint</h3>
 
               <div className="space-y-3 text-xs">
                 {trip.startCity && (
                   <div className="p-3 rounded-2xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between">
-                    <span className="text-slate-700 dark:text-slate-300 font-medium">Starting City / Origin</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-medium">Departure Hub</span>
                     <span className="font-extrabold text-emerald-900 dark:text-emerald-300 flex items-center gap-1">
                       <span>🛫</span>
                       <span>{trip.startCity}</span>
@@ -478,7 +358,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
                 </div>
 
                 <div className="p-3 rounded-2xl bg-white/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">Alcohol Consumption</span>
+                  <span className="text-slate-600 dark:text-slate-400">Alcohol Preference</span>
                   <span className="font-bold text-slate-900 dark:text-white">{trip.preferences.alcohol}</span>
                 </div>
 
@@ -561,17 +441,6 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({
       {/* TAB 5: GROUP SYNERGY */}
       {activeTab === 'group' && (
         <GroupTravelView trip={trip} />
-      )}
-
-      {/* TAB 6: BUDGET & EXPENSES OVERVIEW */}
-      {activeTab === 'bookings' && (
-        <BudgetOverviewTab
-          trip={trip}
-          activeDayNumber={activeDayNumber}
-          onSelectDay={onSelectDay}
-          onAddExpense={onAddExpense}
-          onDeleteExpense={onDeleteExpense}
-        />
       )}
 
     </div>

@@ -162,15 +162,21 @@ ${destLat && destLng ? `Exact Destination Geographic Center: Latitude ${destLat}
 Departure Point: "${startCity}".
 Travelers: ${params.companionType} (${params.travellersCount} people).
 Travel Mode: ${travelMode}.
-Budget Level: ${params.budgetTier} (~₹${params.targetBudget?.toLocaleString() || '30,000'}).
+Budget Level: ${params.budgetTier} (~₹${params.targetBudget?.toLocaleString() || '30,000'} total for ${params.travellersCount} people over ${params.durationDays} days).
+Budget Persona & Real-World Pricing Rules:
+${params.budgetTier === 'Budget' ? '- BACKPACKER & BUDGET CALIBRATION: Feature authentic high-value local eateries, famous dhabas, street food, budget homestays/hostel vibes, economical local transit, free viewpoints & low-cost entrance spots.' : ''}
+${params.budgetTier === 'Moderate' ? '- MODERATE COMFORT CALIBRATION: Feature 3-star boutique stays, cozy Airbnbs, top-rated local cafes & bistros, private cabs, and balanced experiences.' : ''}
+${params.budgetTier === 'Premium' ? '- PREMIUM UPGRADE CALIBRATION: Feature 4-star boutique resorts, scenic rooftop fine dining, curated guided heritage/nature experiences, and private chauffeured transit.' : ''}
+${params.budgetTier === 'Luxury' ? '- LUXURY & 5-STAR CALIBRATION: Feature 5-star heritage palaces/villas, chef-curated gourmet dining, exclusive private boats/safaris, and high-comfort VIP hospitality.' : ''}
 Preferences: ${params.preferences.styles.join(', ')}. Pace: ${params.preferences.pace}. Food: ${params.preferences.food}.
 
 STRICT ACCURACY RULES:
 1. ZERO HALLUCINATIONS: Every single activity, landmark, dining spot, cafe, and viewpoint MUST be a real, verified place strictly located in and around "${destName}".
 2. NEVER mix up destinations: Do NOT include places from other states or other districts (e.g., if destination is Ooty, all stops MUST be real Ooty spots like Doddabetta Peak, Ooty Botanical Gardens, Ooty Lake, Pykara Lake/Falls, Nilgiri Mountain Railway, Rose Garden, Tea Museum, etc. Do NOT include Wayanad, Goa, or Manali places).
 3. EXACT REAL-WORLD COORDINATES: For each activity, provide authentic latitude and longitude coordinates in "${destName}".
-4. AUTHENTIC LOCAL FLAVORS: Propose real popular local eateries, regional cuisine, and authentic experiences specific to "${destName}".
-5. TRANSIT LOGISTICS: Calculate realistic distance and transit options from "${startCity}" to "${destName}".`;
+4. AUTHENTIC LOCAL FLAVORS: Propose real popular local eateries, regional cuisine, and authentic experiences specific to "${destName}" aligned with the ${params.budgetTier} budget tier.
+5. REALISTIC COSTS: Every activity cost in INR must be realistic for real people (e.g., local street food ₹100-₹300, entry tickets ₹50-₹500, fine dining ₹1,500-₹3,500).
+6. TRANSIT LOGISTICS: Calculate realistic distance and transit options from "${startCity}" to "${destName}".`;
 
   const schema = {
     type: 'OBJECT',

@@ -70,8 +70,85 @@ export const BudgetOverviewTab: React.FC<BudgetOverviewTabProps> = ({
     categoryTotals[e.category] = (categoryTotals[e.category] || 0) + e.amount;
   });
 
+  // Average daily burn calculations
+  const avgDailyTarget = Math.round(tripTargetBudget / Math.max(1, trip.durationDays));
+  const daysWithExpenses = new Set(expenses.map(e => e.dayNumber)).size || 1;
+  const currentDailyBurn = Math.round(totalActualSpent / Math.max(1, daysWithExpenses));
+
   return (
     <div className="space-y-6">
+      {/* AI Budget Intelligence Banner */}
+      <div className="bg-gradient-to-r from-emerald-950/90 via-teal-950/80 to-slate-900 rounded-3xl p-5 sm:p-6 border border-emerald-500/40 shadow-2xl relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                <Sparkles className="w-3 h-3" />
+                <span>AI Budget Intelligence</span>
+              </span>
+              <span className="text-xs font-semibold text-emerald-300">
+                Optimized for {trip.destination}
+              </span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black text-white">
+              Trip Budget & Live Expense Planner
+            </h2>
+            <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+              Real-time telemetry tracking your planned expenditure against on-the-ground spending across all {trip.durationDays} days.
+            </p>
+          </div>
+
+          <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 bg-slate-900/60 sm:bg-transparent p-3 sm:p-0 rounded-2xl border border-slate-800 sm:border-0">
+            <div className="text-left sm:text-right">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Daily Target Cap</span>
+              <span className="text-base sm:text-lg font-black text-emerald-400">
+                {currency}{avgDailyTarget.toLocaleString()} <span className="text-xs font-normal text-slate-400">/ day</span>
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Current Pace</span>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${
+                currentDailyBurn <= avgDailyTarget
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+              }`}>
+                {currency}{currentDailyBurn.toLocaleString()} / active day
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* AI Travel Budget Insights Bar */}
+        <div className="mt-4 pt-3 border-t border-emerald-500/20 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <div className="p-3 rounded-2xl bg-slate-900/70 border border-slate-800">
+            <span className="font-bold text-emerald-300 flex items-center gap-1.5 mb-1">
+              <span>💳</span> Local Payments Advice
+            </span>
+            <p className="text-[11px] text-slate-300">
+              Keep 20% in cash for local markets, street food & auto-rickshaws; cards/UPI work for 80% of stays & cafes.
+            </p>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-slate-900/70 border border-slate-800">
+            <span className="font-bold text-teal-300 flex items-center gap-1.5 mb-1">
+              <span>⚡</span> Transit Cost Optimization
+            </span>
+            <p className="text-[11px] text-slate-300">
+              Book rental scooters or day passes for local travel to cut city transit expenses by up to 35%.
+            </p>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-slate-900/70 border border-slate-800">
+            <span className="font-bold text-amber-300 flex items-center gap-1.5 mb-1">
+              <span>🍽️</span> Dining & Buffer Guard
+            </span>
+            <p className="text-[11px] text-slate-300">
+              Allocating {currency}{Math.round(totalActivitiesCost * 0.4).toLocaleString()} for dining leaves a healthy emergency buffer.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Top 3 Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Card 1: Total Target Budget */}

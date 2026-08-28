@@ -555,19 +555,15 @@ export default function App() {
                   trip={activeTrip}
                   activeDayNumber={activeDayNumber}
                   onSelectDay={(dayNum) => setActiveDayNumber(dayNum)}
-                  onOpenAdapt={() => setIsAdaptModalOpen(true)}
                   onEnterTripMode={() => setCurrentView('trip_mode')}
                   onOpenActivityDetails={(act) => setSelectedActivityForModal(act)}
                   onReplaceActivity={handleReplaceActivity}
                   onMoveActivityUp={handleMoveActivityUp}
                   onMoveActivityDown={handleMoveActivityDown}
                   onRemoveActivity={handleRemoveActivity}
-                  onToggleActivityComplete={handleToggleActivityComplete}
                   onAddCustomActivity={handleAddCustomActivity}
                   onTogglePackingItem={handleTogglePackingItem}
                   onAddPackingItem={handleAddPackingItem}
-                  onAddExpense={handleAddExpense}
-                  onDeleteExpense={handleDeleteExpense}
                   onOpenMapSearch={() => setCurrentView('map_search')}
                 />
               </div>
@@ -629,25 +625,6 @@ export default function App() {
               currency={activeTrip?.currency || 'INR'}
               onClose={() => setSelectedActivityForModal(null)}
               onReplace={handleReplaceActivity}
-              onStartNav={(act) => {
-                addToast('info', 'Navigation Started', `Heading to ${act.title}. GPS routing enabled.`);
-              }}
-              onLogExpense={(act) => {
-                let mappedCat: any = 'Other';
-                if (['Food', 'Sightseeing', 'Adventure', 'Relaxation', 'Culture', 'Nightlife', 'Shopping', 'Transit'].includes(act.category)) {
-                  mappedCat = act.category;
-                }
-                handleAddExpense({
-                  dayNumber: activeDayNumber,
-                  title: act.title,
-                  amount: act.estimatedCost,
-                  category: mappedCat,
-                  time: act.time,
-                  paidBy: 'Me',
-                  activityId: act.id,
-                  notes: `Logged for ${act.location}`
-                });
-              }}
             />
           )}
 
