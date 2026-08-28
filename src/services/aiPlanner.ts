@@ -1,6 +1,4 @@
 import { Trip, UserPreferences, Activity, TravelCompanion, TravelMode, BudgetTier, GroupMember } from '../types';
-import { config } from '../config';
-import { GoogleGenAI } from '@google/genai';
 
 export interface AdaptOption {
   id: string;
@@ -69,20 +67,6 @@ export const ADAPT_OPTIONS: AdaptOption[] = [
   }
 ];
 
-function parseJsonSafely(text: string): any {
-  if (!text || !text.trim()) return {};
-  let cleaned = text.trim();
-  if (cleaned.includes('```')) {
-    const match = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (match && match[1]) {
-      cleaned = match[1].trim();
-    } else {
-      cleaned = cleaned.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
-    }
-  }
-  return JSON.parse(cleaned);
-}
-
 export function calculateGroupCompatibility(members: GroupMember[] = []) {
   if (!members || members.length === 0) {
     return {
@@ -141,291 +125,18 @@ export async function generateTripFromInputs(params: {
   targetBudget?: number;
   preferences: UserPreferences;
 }): Promise<Trip> {
-  const apiKey = config.api.geminiKey;
-  if (!apiKey) {
-    throw new Error('Gemini API key is not configured. Please add VITE_GEMINI_API_KEY in your .env file.');
-  }
-
-  const travelMode = params.travelMode || params.preferences.travelMode || 'Flight';
-  const startCity = params.startCity || params.preferences.startCity || 'Origin City';
-  const destName = params.destinationPlace?.name || params.destinationId;
-  const destAddress = params.destinationPlace?.address || destName;
-  const destLat = params.destinationPlace?.latitude;
-  const destLng = params.destinationPlace?.longitude;
-  const heroImg = params.destinationPlace?.photoUrl || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80';
-  const ai = new GoogleGenAI({ apiKey });
-  
-  const prompt = `You are a world-class AI travel planner and local expert.
-Your task is to generate a realistic, high-precision, authentic ${params.durationDays}-day travel itinerary for:
-Destination: "${destName}" (${destAddress}).
-${destLat && destLng ? `Exact Destination Geographic Center: Latitude ${destLat}, Longitude ${destLng}.` : ''}
-Departure Point: "${startCity}".
-Travelers: ${params.companionType} (${params.travellersCount} people).
-Travel Mode: ${travelMode}.
-Budget Level: ${params.budgetTier} (~₹${params.targetBudget?.toLocaleString() || '30,000'} total for ${params.travellersCount} people over ${params.durationDays} days).
-Budget Persona & Real-World Pricing Rules:
-${params.budgetTier === 'Budget' ? '- BACKPACKER & BUDGET CALIBRATION: Feature authentic high-value local eateries, famous dhabas, street food, budget homestays/hostel vibes, economical local transit, free viewpoints & low-cost entrance spots.' : ''}
-${params.budgetTier === 'Moderate' ? '- MODERATE COMFORT CALIBRATION: Feature 3-star boutique stays, cozy Airbnbs, top-rated local cafes & bistros, private cabs, and balanced experiences.' : ''}
-${params.budgetTier === 'Premium' ? '- PREMIUM UPGRADE CALIBRATION: Feature 4-star boutique resorts, scenic rooftop fine dining, curated guided heritage/nature experiences, and private chauffeured transit.' : ''}
-${params.budgetTier === 'Luxury' ? '- LUXURY & 5-STAR CALIBRATION: Feature 5-star heritage palaces/villas, chef-curated gourmet dining, exclusive private boats/safaris, and high-comfort VIP hospitality.' : ''}
-Preferences: ${params.preferences.styles.join(', ')}. Pace: ${params.preferences.pace}. Food: ${params.preferences.food}.
-
-STRICT ACCURACY RULES:
-1. ZERO HALLUCINATIONS: Every single activity, landmark, dining spot, cafe, and viewpoint MUST be a real, verified place strictly located in and around "${destName}".
-2. NEVER mix up destinations: Do NOT include places from other states or other districts (e.g., if destination is Ooty, all stops MUST be real Ooty spots like Doddabetta Peak, Ooty Botanical Gardens, Ooty Lake, Pykara Lake/Falls, Nilgiri Mountain Railway, Rose Garden, Tea Museum, etc. Do NOT include Wayanad, Goa, or Manali places).
-3. EXACT REAL-WORLD COORDINATES: For each activity, provide authentic latitude and longitude coordinates in "${destName}".
-4. AUTHENTIC LOCAL FLAVORS: Propose real popular local eateries, regional cuisine, and authentic experiences specific to "${destName}" aligned with the ${params.budgetTier} budget tier.
-5. REALISTIC COSTS: Every activity cost in INR must be realistic for real people (e.g., local street food ₹100-₹300, entry tickets ₹50-₹500, fine dining ₹1,500-₹3,500).
-6. TRANSIT LOGISTICS: Calculate realistic distance and transit options from "${startCity}" to "${destName}".`;
-
-  const schema = {
-    type: 'OBJECT',
-    properties: {
-      routeSummary: {
-        type: 'OBJECT',
-        properties: {
-          distanceKm: { type: 'NUMBER' },
-          flightDuration: { type: 'STRING' },
-          trainDuration: { type: 'STRING' },
-          driveDuration: { type: 'STRING' },
-          departureHub: { type: 'STRING' },
-          arrivalHub: { type: 'STRING' },
-          keyHighwayOrTrain: { type: 'STRING' },
-          recommendedMode: { type: 'STRING' },
-          notes: { type: 'STRING' }
-        },
-        required: ['distanceKm', 'departureHub', 'arrivalHub', 'recommendedMode']
-      },
-      clothingAdvice: { type: 'STRING', description: 'Brief advice on what clothing to pack.' },
-      days: {
-        type: 'ARRAY',
-        items: {
-          type: 'OBJECT',
-          properties: {
-            dayNumber: { type: 'NUMBER' },
-            date: { type: 'STRING' },
-            title: { type: 'STRING' },
-            theme: { type: 'STRING' },
-            vibe: { type: 'STRING' },
-            weatherForecast: {
-              type: 'OBJECT',
-              properties: {
-                temp: { type: 'STRING' },
-                condition: { type: 'STRING' },
-                icon: { type: 'STRING' },
-                rainChance: { type: 'NUMBER' }
-              },
-              required: ['temp', 'condition', 'icon', 'rainChance']
-            },
-            activities: {
-              type: 'ARRAY',
-              items: {
-                type: 'OBJECT',
-                properties: {
-                  id: { type: 'STRING' },
-                  time: { type: 'STRING' },
-                  endTime: { type: 'STRING' },
-                  title: { type: 'STRING' },
-                  category: { type: 'STRING' },
-                  location: { type: 'STRING' },
-                  coordinates: {
-                    type: 'OBJECT',
-                    properties: {
-                      lat: { type: 'NUMBER' },
-                      lng: { type: 'NUMBER' }
-                    },
-                    required: ['lat', 'lng']
-                  },
-                  estimatedCost: { type: 'NUMBER' },
-                  travelTimeFromPrev: { type: 'STRING' },
-                  duration: { type: 'STRING' },
-                  description: { type: 'STRING' },
-                  imageUrl: { type: 'STRING' },
-                  recommendationReason: { type: 'STRING' },
-                  isIndoor: { type: 'BOOLEAN' },
-                  isRainSafe: { type: 'BOOLEAN' },
-                  rating: { type: 'NUMBER' }
-                },
-                required: ['id', 'time', 'endTime', 'title', 'category', 'location', 'estimatedCost', 'travelTimeFromPrev', 'duration', 'description', 'imageUrl', 'recommendationReason', 'isIndoor', 'isRainSafe', 'rating']
-              }
-            }
-          },
-          required: ['dayNumber', 'date', 'title', 'theme', 'vibe', 'weatherForecast', 'activities']
-        }
-      },
-      packingList: {
-        type: 'ARRAY',
-        items: {
-          type: 'OBJECT',
-          properties: {
-            id: { type: 'STRING' },
-            name: { type: 'STRING' },
-            category: { type: 'STRING' },
-            checked: { type: 'BOOLEAN' },
-            reason: { type: 'STRING' }
-          },
-          required: ['id', 'name', 'category', 'checked', 'reason']
-        }
-      },
-      requirements: {
-        type: 'ARRAY',
-        items: {
-          type: 'OBJECT',
-          properties: {
-            id: { type: 'STRING' },
-            title: { type: 'STRING' },
-            type: { type: 'STRING' },
-            status: { type: 'STRING' },
-            notes: { type: 'STRING' }
-          },
-          required: ['id', 'title', 'type', 'status', 'notes']
-        }
-      },
-      bookings: {
-        type: 'ARRAY',
-        items: {
-          type: 'OBJECT',
-          properties: {
-            id: { type: 'STRING' },
-            title: { type: 'STRING' },
-            type: { type: 'STRING' },
-            status: { type: 'STRING' },
-            estimatedCost: { type: 'NUMBER' },
-            provider: { type: 'STRING' },
-            notes: { type: 'STRING' }
-          },
-          required: ['id', 'title', 'type', 'status', 'estimatedCost', 'provider', 'notes']
-        }
-      }
-    },
-    required: ['routeSummary', 'clothingAdvice', 'days', 'packingList', 'requirements', 'bookings']
-  };
-
-  const modelsToTry = [
-    config.models.defaultAiModel || 'gemini-3.6-flash',
-    'gemini-3.6-pro'
-  ];
-
-  let lastError: any = null;
-  let genData: any = null;
-
-  for (const modelName of modelsToTry) {
-    try {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: schema
-        }
-      });
-
-      const text = response.text || '';
-      genData = parseJsonSafely(text);
-      if (genData && genData.days && Array.isArray(genData.days)) {
-        break;
-      }
-    } catch (err: any) {
-      console.warn(`Attempt with ${modelName} failed:`, err);
-      lastError = err;
-    }
-  }
-
-  if (!genData || !genData.days) {
-    throw new Error(lastError?.message || 'Invalid itinerary generated by Gemini AI. Please check your API key.');
-  }
-
-  const days = (genData.days || []).map((day: any, dIdx: number) => {
-    const dayNum = day.dayNumber || dIdx + 1;
-    return {
-      dayNumber: dayNum,
-      date: day.date || `Day ${dayNum}`,
-      title: day.title || `Day ${dayNum} Exploration`,
-      theme: day.theme || `${destName} Highlights & Exploration`,
-      vibe: day.vibe || 'Scenic views, cultural landmarks and delicious local tastes',
-      weatherForecast: day.weatherForecast || {
-        temp: '27°C',
-        condition: 'Partly Cloudy',
-        icon: 'Sun',
-        rainChance: 10
-      },
-      activities: (day.activities || []).map((act: any, aIdx: number) => {
-        const baseLat = destLat || 20.0;
-        const baseLng = destLng || 78.0;
-        const offsetLat = (aIdx * 0.01) * Math.sin(aIdx * 1.5);
-        const offsetLng = (aIdx * 0.01) * Math.cos(aIdx * 1.5);
-
-        return {
-          id: act.id || `act-${dayNum}-${aIdx + 1}-${Date.now()}`,
-          time: act.time || '10:00 AM',
-          endTime: act.endTime || '12:00 PM',
-          title: act.title || `Highlight Stop ${aIdx + 1}`,
-          category: act.category || 'Sightseeing',
-          location: act.location || destName,
-          coordinates: (act.coordinates && typeof act.coordinates.lat === 'number' && typeof act.coordinates.lng === 'number')
-            ? act.coordinates
-            : {
-                lat: Number((baseLat + offsetLat).toFixed(6)),
-                lng: Number((baseLng + offsetLng).toFixed(6))
-              },
-          estimatedCost: typeof act.estimatedCost === 'number' ? act.estimatedCost : 400,
-          travelTimeFromPrev: act.travelTimeFromPrev || '15 min drive',
-          duration: act.duration || '1.5 hrs',
-          description: act.description || `Experience ${act.title || destName}.`,
-          imageUrl: act.imageUrl || heroImg,
-          recommendationReason: act.recommendationReason || 'Tailored to your preferences and travel style.',
-          isIndoor: Boolean(act.isIndoor),
-          isRainSafe: Boolean(act.isRainSafe),
-          rating: typeof act.rating === 'number' ? act.rating : 4.8
-        };
-      })
-    };
+  const response = await fetch('/api/ai/generate-trip', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
   });
 
-  return {
-    id: `trip-${Date.now()}`,
-    title: `${destName} ${params.companionType} Getaway`,
-    destination: destName,
-    destinationStateOrCountry: destAddress,
-    startCity,
-    routeSummary: genData.routeSummary || {
-      distanceKm: 250,
-      flightDuration: '1h 30m',
-      trainDuration: '5h',
-      driveDuration: '4h 30m',
-      departureHub: `${startCity} Terminal`,
-      arrivalHub: `${destName} Junction`,
-      keyHighwayOrTrain: 'Direct Transit Route',
-      recommendedMode: travelMode,
-      notes: 'Direct transit connectivity'
-    },
-    heroImage: heroImg,
-    startDate: params.startDate,
-    endDate: params.endDate,
-    durationDays: params.durationDays,
-    companionType: params.companionType,
-    travellersCount: params.travellersCount,
-    travelMode,
-    budgetTier: params.budgetTier,
-    targetBudget: params.targetBudget || 25000,
-    currency: 'INR',
-    preferences: {
-      ...params.preferences,
-      startCity
-    },
-    days,
-    packingList: (genData.packingList && genData.packingList.length > 0) ? genData.packingList : [
-      { id: 'p-1', name: 'Comfortable walking footwear', category: 'Clothing', checked: false, reason: 'Sightseeing' },
-      { id: 'p-2', name: 'Mobile charger & power bank', category: 'Electronics', checked: false, reason: 'Navigation' },
-      { id: 'p-3', name: 'Government ID / booking receipts', category: 'Documents', checked: false, reason: 'Verification' },
-      { id: 'p-4', name: 'Reusable water bottle & sunscreen', category: 'Toiletries', checked: false, reason: 'Daily travel' }
-    ],
-    requirements: genData.requirements || [],
-    bookings: genData.bookings || [],
-    clothingAdvice: genData.clothingAdvice || 'Comfortable breathable travel attire.',
-    createdAt: new Date().toISOString().split('T')[0],
-    adaptationHistory: []
-  };
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to generate trip');
+  }
+
+  return response.json();
 }
 
 /**
@@ -436,106 +147,15 @@ export async function adaptTripPlanWithAI(
   triggerId: string,
   targetDayNumber: number = 1
 ): Promise<{ updatedTrip: Trip; summaryMessage: string; changedCount: number }> {
-  const apiKey = config.api.geminiKey;
-  if (!apiKey) {
-    return adaptTripPlan(trip, triggerId, targetDayNumber);
-  }
-
   try {
-    const ai = new GoogleGenAI({ apiKey });
-    const dayIndex = trip.days.findIndex(d => d.dayNumber === targetDayNumber);
-    const currentDay = dayIndex !== -1 ? trip.days[dayIndex] : trip.days[0];
-    const triggerOption = ADAPT_OPTIONS.find(o => o.id === triggerId);
-    const triggerDescription = triggerOption ? `${triggerOption.label} (${triggerOption.description})` : triggerId;
-
-    const prompt = `You are an AI adaptive travel assistant.
-Destination: "${trip.destination}" (${trip.destinationStateOrCountry}).
-Current Day ${currentDay.dayNumber} Theme: "${currentDay.theme}".
-Current Activities:
-${JSON.stringify(currentDay.activities.map(a => ({ title: a.title, category: a.category, location: a.location, cost: a.estimatedCost })))}
-
-The user triggered this dynamic real-time adaptation: "${triggerDescription}".
-Replan Day ${currentDay.dayNumber} activities specifically for "${trip.destination}" to accommodate this trigger.
-Return updated theme, vibe, weatherForecast, and activities list with real places in ${trip.destination}.`;
-
-    const response = await ai.models.generateContent({
-      model: config.models.defaultAiModel || 'gemini-3.6-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: 'OBJECT',
-          properties: {
-            theme: { type: 'STRING' },
-            vibe: { type: 'STRING' },
-            summaryMessage: { type: 'STRING' },
-            activities: {
-              type: 'ARRAY',
-              items: {
-                type: 'OBJECT',
-                properties: {
-                  id: { type: 'STRING' },
-                  time: { type: 'STRING' },
-                  endTime: { type: 'STRING' },
-                  title: { type: 'STRING' },
-                  category: { type: 'STRING' },
-                  location: { type: 'STRING' },
-                  coordinates: {
-                    type: 'OBJECT',
-                    properties: {
-                      lat: { type: 'NUMBER' },
-                      lng: { type: 'NUMBER' }
-                    }
-                  },
-                  estimatedCost: { type: 'NUMBER' },
-                  travelTimeFromPrev: { type: 'STRING' },
-                  duration: { type: 'STRING' },
-                  description: { type: 'STRING' },
-                  imageUrl: { type: 'STRING' },
-                  recommendationReason: { type: 'STRING' },
-                  isIndoor: { type: 'BOOLEAN' },
-                  isRainSafe: { type: 'BOOLEAN' },
-                  isUpdated: { type: 'BOOLEAN' },
-                  updatedReason: { type: 'STRING' },
-                  rating: { type: 'NUMBER' }
-                },
-                required: ['id', 'time', 'title', 'category', 'location', 'estimatedCost', 'duration', 'description', 'recommendationReason']
-              }
-            }
-          },
-          required: ['theme', 'vibe', 'summaryMessage', 'activities']
-        }
-      }
+    const response = await fetch('/api/ai/adapt-trip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trip, triggerId, targetDayNumber }),
     });
-
-    const parsed = parseJsonSafely(response.text || '{}');
-    if (parsed.activities && Array.isArray(parsed.activities)) {
-      const updatedTrip = JSON.parse(JSON.stringify(trip)) as Trip;
-      const targetDay = updatedTrip.days[dayIndex !== -1 ? dayIndex : 0];
-      targetDay.theme = parsed.theme || targetDay.theme;
-      targetDay.vibe = parsed.vibe || targetDay.vibe;
-      targetDay.activities = parsed.activities.map((a: any, idx: number) => ({
-        ...a,
-        id: a.id || `act-adapted-${Date.now()}-${idx}`,
-        imageUrl: a.imageUrl || currentDay.activities[0]?.imageUrl || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80',
-        rating: a.rating || 4.8,
-        isUpdated: true,
-        updatedReason: a.updatedReason || `Adapted for ${triggerOption?.label || triggerId}`
-      }));
-
-      const summaryMessage = parsed.summaryMessage || `Day ${targetDay.dayNumber} adapted for ${triggerOption?.label || triggerId}.`;
-      if (!updatedTrip.adaptationHistory) updatedTrip.adaptationHistory = [];
-      updatedTrip.adaptationHistory.unshift({
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        trigger: triggerId,
-        description: summaryMessage
-      });
-
-      return {
-        updatedTrip,
-        summaryMessage,
-        changedCount: targetDay.activities.length
-      };
+    
+    if (response.ok) {
+      return await response.json();
     }
   } catch (err) {
     console.warn('AI adaptation error, using fallback logic:', err);
@@ -617,7 +237,7 @@ export function adaptTripPlan(
     const shifted: Activity[] = [];
     changedCount = 2;
     shifted.push({
-      id: `woke-brunch-${Date.now()}`,
+      id: `woke-brunch-${crypto.randomUUID()}`,
       time: '11:30 AM',
       endTime: '01:00 PM',
       title: `Artisan Brunch in ${trip.destination} (Late Rise Optimizer)`,

@@ -19,13 +19,27 @@ interface GroupTravelViewProps {
 }
 
 export const GroupTravelView: React.FC<GroupTravelViewProps> = ({ trip }) => {
-  const members: GroupMember[] = trip.preferences.groupMembers || [
-    { id: 'm1', name: 'Rohan', styles: ['Adventure', 'Photography'], food: 'Non-vegetarian' },
-    { id: 'm2', name: 'Friend 1 (Kabir)', styles: ['Food', 'Nightlife'], food: 'Non-vegetarian' },
-    { id: 'm3', name: 'Friend 2 (Tara)', styles: ['Nature', 'Relaxation'], food: 'Vegetarian' }
-  ];
+  const members: GroupMember[] = trip.preferences.groupMembers || [];
 
   const compatibility = calculateGroupCompatibility(members);
+
+  if (members.length === 0) {
+    return (
+      <div className="p-12 text-center rounded-3xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-white/60 dark:border-white/10 shadow-xl space-y-4 max-w-lg mx-auto mt-8">
+        <div className="w-16 h-16 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-inner">
+          <Users className="w-8 h-8" />
+        </div>
+        <h3 className="text-xl font-bold text-slate-900 dark:text-white">No Group Members Added Yet</h3>
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          Invite your friends to this trip and let AI calculate your collective vibe match and harmonize the itinerary.
+        </p>
+        <button className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition-all inline-flex items-center gap-2 cursor-pointer mt-2">
+          <Plus className="w-4 h-4" />
+          <span>Add Member</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 text-left max-w-6xl mx-auto">

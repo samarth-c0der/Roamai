@@ -642,7 +642,7 @@ export const CreateTripWizard: React.FC<CreateTripWizardProps> = ({
       onGenerateTrip({
         destinationId: targetDestName,
         destinationPlace: selectedDestinationPlace || {
-          placeId: `custom-dest-${Date.now()}`,
+          placeId: `custom-dest-${crypto.randomUUID()}`,
           name: targetDestName,
           address: selectedDestination.region || targetDestName,
           latitude: 11.4102,

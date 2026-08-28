@@ -133,7 +133,7 @@ async function fallbackSearchPlaces(query: string, userCoords?: { lat: number; l
   if (userCoords && userCoords.lat && userCoords.lng) {
     return [
       {
-        placeId: `custom-query-${Date.now()}`,
+        placeId: `custom-query-${crypto.randomUUID()}`,
         name: clean,
         address: `${clean}`,
         latitude: userCoords.lat,

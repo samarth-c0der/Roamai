@@ -10,7 +10,6 @@ const getEnv = (key: string): string => {
 
 export const config = {
   api: {
-    geminiKey: getEnv('VITE_GEMINI_API_KEY') || getEnv('GEMINI_API_KEY'),
     googleMapsKey: getEnv('VITE_GOOGLE_MAPS_API_KEY') || getEnv('GOOGLE_MAPS_API_KEY'),
   },
   supabase: {

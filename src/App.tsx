@@ -71,7 +71,7 @@ export default function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const addToast = (type: ToastMessage['type'], title: string, message: string) => {
-    const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const id = `toast-${crypto.randomUUID()}`;
     setToasts((prev) => [...prev, { id, type, title, message }]);
     setTimeout(() => {
       dismissToast(id);
@@ -306,7 +306,7 @@ export default function App() {
   const handleAddCustomActivity = (dayNumber: number) => {
     if (!activeTrip) return;
     const newAct: Activity = {
-      id: `custom-act-${Date.now()}`,
+      id: `custom-act-${crypto.randomUUID()}`,
       time: '04:30 PM',
       title: 'Spontaneous Scenic Stop & Local Tasting',
       category: 'Sightseeing',
@@ -360,7 +360,7 @@ export default function App() {
   // Add packing item
   const handleAddPackingItem = (name: string, category: PackingItem['category']) => {
     const newItem: PackingItem = {
-      id: `p-${Date.now()}`,
+      id: `p-${crypto.randomUUID()}`,
       name,
       category,
       checked: false
@@ -383,7 +383,7 @@ export default function App() {
     if (!activeTrip) return;
     const newExpense: ExpenseItem = {
       ...expenseData,
-      id: `exp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: `exp-${crypto.randomUUID()}`,
       createdAt: new Date().toISOString()
     };
 
@@ -444,7 +444,7 @@ export default function App() {
     if (!activeTrip) return;
 
     const newActivity: Activity = {
-      id: `act-search-${Date.now()}`,
+      id: `act-search-${crypto.randomUUID()}`,
       time: '04:30 PM',
       title: place.name,
       location: place.address,

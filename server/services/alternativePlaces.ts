@@ -1,4 +1,5 @@
-import { Activity, TravelStyle } from '../types';
+import { Activity, TravelStyle } from '../../src/types';
+import { GoogleGenAI } from '@google/genai';
 
 export interface AlternativePlaceOption {
   id: string;
@@ -18,22 +19,82 @@ export interface AlternativePlaceOption {
 }
 
 /**
- * Dynamically generate alternative places using AI for any destination worldwide
+ * Dynamically generate alternative places using Gemini AI for any destination worldwide
  */
 export async function fetchAIAlternativePlaces(
   destination: string,
   currentActivity: Activity,
   userStyles: TravelStyle[] = []
 ): Promise<AlternativePlaceOption[]> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return getDynamicAlternativeOptions(destination, currentActivity, userStyles);
+  }
+
   try {
-    const response = await fetch('/api/ai/alternative-places', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ destination, currentActivity, userStyles })
+    const ai = new GoogleGenAI({ apiKey });
+    const prompt = `You are a local travel expert. For a trip in "${destination}", propose 4 distinct, real, high-quality alternative places or activities to replace:
+Current Activity: "${currentActivity.title}" (Category: ${currentActivity.category}, Location: ${currentActivity.location}, Cost: ${currentActivity.estimatedCost}).
+User Travel Styles: ${userStyles.join(', ') || 'Culture, Food, Nature, Hidden gems'}.
+
+Provide 4 unique, real places in or near ${destination} matching the vibe, including uncrowded gems, authentic food spots, or scenic viewpoints.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.6-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              id: { type: 'STRING' },
+              title: { type: 'STRING' },
+              category: { type: 'STRING' },
+              location: { type: 'STRING' },
+              estimatedCost: { type: 'NUMBER' },
+              duration: { type: 'STRING' },
+              description: { type: 'STRING' },
+              recommendationReason: { type: 'STRING' },
+              rating: { type: 'NUMBER' },
+              tags: {
+                type: 'ARRAY',
+                items: { type: 'STRING' }
+              },
+              matchScore: { type: 'NUMBER' },
+              badge: { type: 'STRING' },
+              vibe: { type: 'STRING' }
+            },
+            required: [
+              'id',
+              'title',
+              'category',
+              'location',
+              'estimatedCost',
+              'duration',
+              'description',
+              'recommendationReason',
+              'rating',
+              'tags',
+              'matchScore',
+              'vibe'
+            ]
+          }
+        }
+      }
     });
-    
-    if (response.ok) {
-      return await response.json();
+
+    const parsed: AlternativePlaceOption[] = JSON.parse(response.text || '[]');
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((item, idx) => ({
+        ...item,
+        id: item.id || `ai-alt-${crypto.randomUUID()}`,
+        category: (['Food', 'Sightseeing', 'Adventure', 'Relaxation', 'Culture', 'Nightlife', 'Shopping', 'Transit'].includes(item.category)
+          ? item.category
+          : currentActivity.category) as Activity['category'],
+        imageUrl: currentActivity.imageUrl || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=800&auto=format&fit=crop'
+      }));
     }
   } catch (err) {
     console.warn('AI Alternative places generation error, using dynamic model generator:', err);

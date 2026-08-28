@@ -1,5 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
-import { config } from '../config';
 import { TravelMode } from '../types';
 
 export interface TravelModeViability {
@@ -36,24 +34,6 @@ export interface DestinationTravelIntelligence {
 
 // In-memory cache for fast responsive UI
 const intelligenceCache = new Map<string, DestinationTravelIntelligence>();
-
-function parseJsonSafely(text: string): any {
-  if (!text || !text.trim()) return {};
-  let cleaned = text.trim();
-  if (cleaned.includes('```')) {
-    const match = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (match && match[1]) {
-      cleaned = match[1].trim();
-    } else {
-      cleaned = cleaned.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
-    }
-  }
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    return {};
-  }
-}
 
 /**
  * Pure dynamic fallback generator when network/API is initializing (No hardcoded place names)
@@ -156,116 +136,21 @@ export async function fetchAiDestinationTravelIntelligence(
   }
 
   const genericFallback = getGenericDynamicIntelligence(destination, startCity);
-  const geminiKey = config.api.geminiKey;
-
-  if (!geminiKey) {
-    intelligenceCache.set(cacheKey, genericFallback);
-    return genericFallback;
-  }
 
   try {
-    const ai = new GoogleGenAI({ apiKey: geminiKey });
-    const prompt = `You are a world-class travel logistics & route architect AI.
-Analyze the travel route from Origin: "${startCity}" to Destination: "${destination}".
+    const response = await fetch('/api/ai/destination-advice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ destination, startCity }),
+    });
 
-Provide an accurate, real-world travel feasibility & logistics breakdown in strictly valid JSON:
-{
-  "destination": "${destination}",
-  "startCity": "${startCity}",
-  "distanceKm": number (approximate driving or flight distance in km from ${startCity} to ${destination}),
-  "minimumRequiredDays": number (the minimum realistic full days needed to properly experience this destination and account for transit),
-  "idealDays": number (the ideal recommended duration for a relaxed complete trip),
-  "durationReason": "Comprehensive explanation of why this minimum number of days is required (mentioning distances, key regions, altitude/customs/geographic spread)",
-  "recommendedTravelMode": "Flight" | "Train" | "Car / Road Trip" | "Bus" | "Bike / Motorcycle" | "Self-Drive Rental",
-  "recommendedTravelModeReason": "Specific reason why this mode is the best choice from ${startCity} to ${destination}",
-  "transferAndSwitchTips": "Detailed transit transfer/switch guide (e.g. airport connections, border crossing checkpoints, railhead to road switches, mountain roads)",
-  "modesBreakdown": [
-    {
-      "mode": "Flight" | "Train" | "Car / Road Trip" | "Bus" | "Bike / Motorcycle" | "Self-Drive Rental",
-      "label": "Display name (e.g. 'Flight', 'Cross-Border Road Trip', 'Fly + Destination Rental', 'Train + Transfer')",
-      "icon": "Emoji icon",
-      "isRecommended": boolean (true for the single best mode),
-      "durationEstimate": "e.g. '2h flight', '14h road trip', '24h rail+bus'",
-      "estimatedCostRange": "e.g. 'INR 5,000 - 9,000' or local equivalent",
-      "suitabilityScore": number (0 to 100 score),
-      "pros": "Main benefit for this route",
-      "cons": "Main drawback for this route",
-      "hasSwitchOrTransfer": boolean (true if line switch, border pass, or transfer is needed),
-      "transferGuide": "Specific step-by-step interchange instructions if applicable",
-      "desc": "Precise description of this transit from ${startCity} to ${destination}",
-      "tag": "e.g. 'Fast & Direct', 'Scenic Route', 'Budget Friendly', 'Cross-Border'"
-    }
-  ],
-  "highlightsInMinDays": [
-    "Highlight 1",
-    "Highlight 2",
-    "Highlight 3",
-    "Highlight 4",
-    "Highlight 5"
-  ],
-  "bestSeasons": "Optimal months/seasons to visit",
-  "destinationVibe": "1-sentence summary of the vibe and landscape"
-}
-
-Important:
-- Include ALL viable travel modes that make sense from ${startCity} to ${destination} (for example, if land-accessible like India to Nepal, include Flight, Car/Road Trip with border pass, Bus, Train with border switch, Motorcycle, and Fly + Rental).
-- If overseas across oceans (like India to Iceland, USA, Europe, Australia), include Flight and Fly + Destination Rental.
-- Return ONLY valid raw JSON with no Markdown or text outside JSON.`;
-
-    const modelsToTry = [
-      config.models.defaultAiModel || 'gemini-2.5-flash',
-      'gemini-2.5-flash',
-      'gemini-2.5-pro'
-    ];
-
-    for (const modelName of modelsToTry) {
-      try {
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-            temperature: 0.2
-          }
-        });
-
-        const text = response.text || '';
-        const parsed = parseJsonSafely(text);
-
-        if (
-          parsed &&
-          typeof parsed.minimumRequiredDays === 'number' &&
-          parsed.recommendedTravelMode
-        ) {
-          const mergedResult: DestinationTravelIntelligence = {
-            destination: parsed.destination || destination,
-            startCity: parsed.startCity || startCity,
-            distanceKm: typeof parsed.distanceKm === 'number' ? parsed.distanceKm : genericFallback.distanceKm,
-            minimumRequiredDays: Math.max(1, parsed.minimumRequiredDays),
-            idealDays: Math.max(parsed.minimumRequiredDays || 3, parsed.idealDays || 5),
-            durationReason: parsed.durationReason || genericFallback.durationReason,
-            recommendedTravelMode: parsed.recommendedTravelMode as TravelMode,
-            recommendedTravelModeReason: parsed.recommendedTravelModeReason || genericFallback.recommendedTravelModeReason,
-            transferAndSwitchTips: parsed.transferAndSwitchTips || genericFallback.transferAndSwitchTips,
-            modesBreakdown: Array.isArray(parsed.modesBreakdown) && parsed.modesBreakdown.length > 0
-              ? parsed.modesBreakdown
-              : genericFallback.modesBreakdown,
-            highlightsInMinDays: Array.isArray(parsed.highlightsInMinDays) && parsed.highlightsInMinDays.length > 0
-              ? parsed.highlightsInMinDays
-              : genericFallback.highlightsInMinDays,
-            bestSeasons: parsed.bestSeasons || genericFallback.bestSeasons,
-            destinationVibe: parsed.destinationVibe || genericFallback.destinationVibe
-          };
-
-          intelligenceCache.set(cacheKey, mergedResult);
-          return mergedResult;
-        }
-      } catch (err) {
-        console.warn(`Destination intelligence attempt with ${modelName} failed, trying next:`, err);
-      }
+    if (response.ok) {
+      const mergedResult = await response.json();
+      intelligenceCache.set(cacheKey, mergedResult);
+      return mergedResult;
     }
   } catch (error) {
-    console.warn('Gemini Destination Intelligence API error:', error);
+    console.warn('Destination Intelligence API error:', error);
   }
 
   intelligenceCache.set(cacheKey, genericFallback);

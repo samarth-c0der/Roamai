@@ -1,5 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
-import { config } from '../config';
 import { BudgetTier, TravelCompanion, TravelMode, RealTripBudgetResult, RealTripTierData } from '../types';
 
 export interface BudgetEstimationParams {
@@ -20,24 +18,6 @@ function getCacheKey(params: BudgetEstimationParams): string {
   const start = (params.startCity || '').toLowerCase().trim();
   const mode = params.travelMode || 'Flight';
   return `${dest}__${start}__${params.durationDays}d__${params.travellersCount}p__${mode}`;
-}
-
-function parseJsonSafely(text: string): any {
-  if (!text || !text.trim()) return {};
-  let cleaned = text.trim();
-  if (cleaned.includes('```')) {
-    const match = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (match && match[1]) {
-      cleaned = match[1].trim();
-    } else {
-      cleaned = cleaned.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
-    }
-  }
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    return {};
-  }
 }
 
 /**
@@ -226,231 +206,24 @@ export async function fetchAiRealTripBudget(params: BudgetEstimationParams): Pro
     return budgetCache.get(cacheKey)!;
   }
 
-  const apiKey = config.api.geminiKey;
-  if (!apiKey) {
-    const fallback = calculateFallbackRealTripBudget(params);
-    budgetCache.set(cacheKey, fallback);
-    return fallback;
-  }
-
   try {
-    const ai = new GoogleGenAI({ apiKey });
-    const prompt = `You are a real-world travel economist and cost analysis expert specializing in realistic trip expense calculations based on crowdsourced traveler logs and actual receipts.
-Calculate high-accuracy, realistic trip budgets for real people traveling with the following details:
-- Destination: "${params.destination}"
-- Departure City: "${params.startCity || 'Nearest Hub'}"
-- Duration: ${params.durationDays} Days
-- Travelers: ${params.travellersCount} People (${params.companionType || 'Friends'})
-- Mode of Travel: ${params.travelMode}
-- Currency: INR (₹)
+    const response = await fetch('/api/ai/estimate-budget', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
 
-You must calculate accurate total and breakdown costs for 4 realistic tiers based on REAL traveler experiences:
-1. "Budget": Hostels/dorms, homestays, famous street food, dhabas, public buses/shared autos/economy transit.
-2. "Moderate": 3-star boutique hotels, cozy Airbnb, popular local cafes & bistros, private cabs / reliable transit.
-3. "Premium": 4-star resorts, private villas, upscale dining, curated tours, chauffeured transport.
-4. "Luxury": 5-star heritage hotels/palaces/villas, fine dining, private chauffeured luxury SUV, exclusive VIP experiences.
-
-Ensure all numbers are realistic in Indian Rupees (₹) for ${params.travellersCount} travelers for ${params.durationDays} days including roundtrip transit and on-ground stays, food, activities, and buffer.`;
-
-    const schema = {
-      type: 'OBJECT',
-      properties: {
-        moneySavingTip: {
-          type: 'STRING',
-          description: 'A specific, actionable insider tip for saving money in this destination based on real travelers.'
-        },
-        peakSeasonNote: {
-          type: 'STRING',
-          description: 'Note on seasonality or peak pricing for this destination.'
-        },
-        crowdsourcedSampleCount: {
-          type: 'INTEGER',
-          description: 'Simulated count of real traveler expense logs analyzed (e.g. 480).'
-        },
-        tiers: {
-          type: 'OBJECT',
-          properties: {
-            Budget: {
-              type: 'OBJECT',
-              properties: {
-                totalCost: { type: 'NUMBER', description: 'Total trip cost in INR for all travelers combined' },
-                perPersonCost: { type: 'NUMBER', description: 'Total cost per person in INR' },
-                perDayPerPerson: { type: 'NUMBER', description: 'Daily cost per person in INR' },
-                breakdown: {
-                  type: 'OBJECT',
-                  properties: {
-                    transit: { type: 'NUMBER' },
-                    stays: { type: 'NUMBER' },
-                    food: { type: 'NUMBER' },
-                    activities: { type: 'NUMBER' },
-                    misc: { type: 'NUMBER' }
-                  },
-                  required: ['transit', 'stays', 'food', 'activities', 'misc']
-                },
-                stayDescription: { type: 'STRING' },
-                foodDescription: { type: 'STRING' },
-                transitDescription: { type: 'STRING' },
-                spendingPersona: { type: 'STRING' },
-                realTravellerLog: { type: 'STRING' }
-              },
-              required: ['totalCost', 'perPersonCost', 'perDayPerPerson', 'breakdown', 'stayDescription', 'foodDescription', 'transitDescription', 'spendingPersona', 'realTravellerLog']
-            },
-            Moderate: {
-              type: 'OBJECT',
-              properties: {
-                totalCost: { type: 'NUMBER' },
-                perPersonCost: { type: 'NUMBER' },
-                perDayPerPerson: { type: 'NUMBER' },
-                breakdown: {
-                  type: 'OBJECT',
-                  properties: {
-                    transit: { type: 'NUMBER' },
-                    stays: { type: 'NUMBER' },
-                    food: { type: 'NUMBER' },
-                    activities: { type: 'NUMBER' },
-                    misc: { type: 'NUMBER' }
-                  },
-                  required: ['transit', 'stays', 'food', 'activities', 'misc']
-                },
-                stayDescription: { type: 'STRING' },
-                foodDescription: { type: 'STRING' },
-                transitDescription: { type: 'STRING' },
-                spendingPersona: { type: 'STRING' },
-                realTravellerLog: { type: 'STRING' }
-              },
-              required: ['totalCost', 'perPersonCost', 'perDayPerPerson', 'breakdown', 'stayDescription', 'foodDescription', 'transitDescription', 'spendingPersona', 'realTravellerLog']
-            },
-            Premium: {
-              type: 'OBJECT',
-              properties: {
-                totalCost: { type: 'NUMBER' },
-                perPersonCost: { type: 'NUMBER' },
-                perDayPerPerson: { type: 'NUMBER' },
-                breakdown: {
-                  type: 'OBJECT',
-                  properties: {
-                    transit: { type: 'NUMBER' },
-                    stays: { type: 'NUMBER' },
-                    food: { type: 'NUMBER' },
-                    activities: { type: 'NUMBER' },
-                    misc: { type: 'NUMBER' }
-                  },
-                  required: ['transit', 'stays', 'food', 'activities', 'misc']
-                },
-                stayDescription: { type: 'STRING' },
-                foodDescription: { type: 'STRING' },
-                transitDescription: { type: 'STRING' },
-                spendingPersona: { type: 'STRING' },
-                realTravellerLog: { type: 'STRING' }
-              },
-              required: ['totalCost', 'perPersonCost', 'perDayPerPerson', 'breakdown', 'stayDescription', 'foodDescription', 'transitDescription', 'spendingPersona', 'realTravellerLog']
-            },
-            Luxury: {
-              type: 'OBJECT',
-              properties: {
-                totalCost: { type: 'NUMBER' },
-                perPersonCost: { type: 'NUMBER' },
-                perDayPerPerson: { type: 'NUMBER' },
-                breakdown: {
-                  type: 'OBJECT',
-                  properties: {
-                    transit: { type: 'NUMBER' },
-                    stays: { type: 'NUMBER' },
-                    food: { type: 'NUMBER' },
-                    activities: { type: 'NUMBER' },
-                    misc: { type: 'NUMBER' }
-                  },
-                  required: ['transit', 'stays', 'food', 'activities', 'misc']
-                },
-                stayDescription: { type: 'STRING' },
-                foodDescription: { type: 'STRING' },
-                transitDescription: { type: 'STRING' },
-                spendingPersona: { type: 'STRING' },
-                realTravellerLog: { type: 'STRING' }
-              },
-              required: ['totalCost', 'perPersonCost', 'perDayPerPerson', 'breakdown', 'stayDescription', 'foodDescription', 'transitDescription', 'spendingPersona', 'realTravellerLog']
-            }
-          },
-          required: ['Budget', 'Moderate', 'Premium', 'Luxury']
-        }
-      },
-      required: ['tiers', 'moneySavingTip', 'crowdsourcedSampleCount', 'peakSeasonNote']
-    };
-
-    const modelsToTry = [
-      config.models.defaultAiModel || 'gemini-3.6-flash',
-      'gemini-3.6-pro'
-    ];
-
-    let aiData: any = null;
-    for (const modelName of modelsToTry) {
-      try {
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-            responseSchema: schema
-          }
-        });
-        aiData = parseJsonSafely(response.text || '');
-        if (aiData && aiData.tiers && aiData.tiers.Budget && aiData.tiers.Moderate && aiData.tiers.Luxury) {
-          break;
-        }
-      } catch (err) {
-        console.warn(`[aiBudgetEstimator] Model ${modelName} failed:`, err);
-      }
-    }
-
-    if (aiData && aiData.tiers && aiData.tiers.Budget && aiData.tiers.Moderate && aiData.tiers.Luxury) {
-      const result: RealTripBudgetResult = {
-        destination: params.destination,
-        startCity: params.startCity,
-        currency: '₹',
-        travelMode: params.travelMode,
-        durationDays: params.durationDays,
-        travellersCount: params.travellersCount,
-        tiers: {
-          Budget: {
-            ...aiData.tiers.Budget,
-            tier: 'Budget',
-            totalCost: Math.round(aiData.tiers.Budget.totalCost / 100) * 100
-          },
-          Moderate: {
-            ...aiData.tiers.Moderate,
-            tier: 'Moderate',
-            totalCost: Math.round(aiData.tiers.Moderate.totalCost / 100) * 100
-          },
-          Premium: {
-            ...aiData.tiers.Premium,
-            tier: 'Premium',
-            totalCost: Math.round(aiData.tiers.Premium.totalCost / 100) * 100
-          },
-          Luxury: {
-            ...aiData.tiers.Luxury,
-            tier: 'Luxury',
-            totalCost: Math.round(aiData.tiers.Luxury.totalCost / 100) * 100
-          }
-        },
-        moneySavingTip: aiData.moneySavingTip || 'Book stays and local transport ahead to avoid on-spot peak tourist surcharges.',
-        crowdsourcedSampleCount: aiData.crowdsourcedSampleCount || 520,
-        peakSeasonNote: aiData.peakSeasonNote || 'Real traveler expense reports calibrated for current travel season.',
-        aiConfidence: 'Verified by Gemini AI Real-Trip Cost Engine',
-        isAiGenerated: true
-      };
-
+    if (response.ok) {
+      const result = await response.json();
       budgetCache.set(cacheKey, result);
       return result;
     }
-
-    // Fallback if AI output was incomplete
-    const fallback = calculateFallbackRealTripBudget(params);
-    budgetCache.set(cacheKey, fallback);
-    return fallback;
   } catch (error) {
     console.error('[aiBudgetEstimator] Error fetching AI budget:', error);
-    const fallback = calculateFallbackRealTripBudget(params);
-    budgetCache.set(cacheKey, fallback);
-    return fallback;
   }
+
+  // Fallback if AI output was incomplete or error occurred
+  const fallback = calculateFallbackRealTripBudget(params);
+  budgetCache.set(cacheKey, fallback);
+  return fallback;
 }
