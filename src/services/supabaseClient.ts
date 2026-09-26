@@ -345,16 +345,32 @@ export function processAvatarImageFile(file: File, maxDimension = 512, quality =
 export function getCachedUserProfile(userId?: string): UserProfileData | null {
   if (typeof window === 'undefined') return null;
   try {
-    const keys = [
-      userId ? `${PROFILE_STORAGE_KEY}_${userId}` : null,
-      userId ? `roamai_user_profile_${userId}` : null,
-      'tripwise_user_profile_guest',
-      'roamai_user_profile_guest',
-      PROFILE_STORAGE_KEY,
-      'roamai_user_profile'
-    ].filter(Boolean) as string[];
+    if (userId) {
+      const scopedKeys = [
+        `${PROFILE_STORAGE_KEY}_${userId}`,
+        `roamai_user_profile_${userId}`,
+        `tripwise_user_profile_${userId}`
+      ];
+      for (const key of scopedKeys) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            parsed.avatarUrl = sanitizeAvatarUrl(parsed.avatarUrl);
+            return parsed;
+          }
+        }
+      }
+      return null;
+    }
 
-    for (const key of keys) {
+    const fallbackKeys = [
+      PROFILE_STORAGE_KEY,
+      'roamai_user_profile',
+      'tripwise_user_profile_guest',
+      'roamai_user_profile_guest'
+    ];
+    for (const key of fallbackKeys) {
       const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);

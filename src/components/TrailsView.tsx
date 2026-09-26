@@ -280,12 +280,11 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
       const updated = prev.map((t) => {
         if (!t) return t;
         const cUname = (t.creator?.username || '').toLowerCase().replace(/^@/, '');
-        const cNoUnderscore = cUname.replace(/_/g, '');
-        const isUserTrail = Boolean(
-          (t.creator?.id && (t.creator.id === session.user.id || t.creator.id === `user_${session.user.id}`)) ||
-          (cleanCanonical && cUname && cUname === cleanCanonical) ||
-          (cleanNoUnderscore && cNoUnderscore && cNoUnderscore === cleanNoUnderscore)
-        );
+        const hasCreatorId = Boolean(t.creator?.id);
+        const matchesCreatorId = hasCreatorId && (t.creator!.id === session.user.id || t.creator!.id === `user_${session.user.id}` || t.creator!.id === `supa_${session.user.id}`);
+        const isUserTrail = hasCreatorId
+          ? matchesCreatorId
+          : Boolean(cleanCanonical && cUname && cUname === cleanCanonical);
 
         if (isUserTrail) {
           if (t.creator?.username !== canonicalUname || (canonicalAvatar && t.creator?.avatarUrl !== canonicalAvatar)) {
@@ -393,23 +392,15 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
     if (!activeReel) return false;
     const creator = activeReel.creator || DEFAULT_TRAIL_CREATOR;
     const creatorUsername = (creator.username || '').toLowerCase().replace(/^@/, '');
-    const cleanCreatorNoUnderscore = creatorUsername.replace(/_/g, '');
-    const cleanCurrentNoUnderscore = (currentUsername || '').toLowerCase().replace(/^@/, '').replace(/_/g, '');
+    const cleanCurrent = (currentUsername || '').toLowerCase().replace(/^@/, '');
     const myUid = session?.user?.id;
 
-    if (
-      (myUid && creator.id && (creator.id === myUid || creator.id === `user_${myUid}` || creator.id === `supa_${myUid}`)) ||
-      (currentUsername && creatorUsername && creatorUsername === (currentUsername || '').toLowerCase().replace(/^@/, '')) ||
-      (currentUsername && cleanCreatorNoUnderscore && cleanCreatorNoUnderscore === cleanCurrentNoUnderscore)
-    ) {
-      return true;
+    if (myUid && creator.id) {
+      return creator.id === myUid || creator.id === `user_${myUid}` || creator.id === `supa_${myUid}`;
     }
 
-    try {
-      const local = getLocalTrails();
-      if (local.some((t) => t.id === activeReel.id)) return true;
-    } catch {
-      // ignore
+    if (currentUsername && creatorUsername) {
+      return creatorUsername === cleanCurrent;
     }
 
     return false;
@@ -1416,24 +1407,20 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
         {(() => {
           const creator = activeReel?.creator || DEFAULT_TRAIL_CREATOR;
           const creatorUsername = (creator.username || '').toLowerCase().replace(/^@/, '');
-          const cleanCreatorNoUnderscore = creatorUsername.replace(/_/g, '');
-          const cleanCurrentNoUnderscore = currentUsername.replace(/_/g, '');
-
           const isOwnTrail = Boolean(
-            (session?.user?.id && creator.id && (creator.id === session.user.id || creator.id === `user_${session.user.id}`)) ||
-            (currentUsername && creatorUsername && creatorUsername === currentUsername) ||
-            (currentUsername && cleanCreatorNoUnderscore && cleanCreatorNoUnderscore === cleanCurrentNoUnderscore)
+            (session?.user?.id && creator.id && (creator.id === session.user.id || creator.id === `user_${session.user.id}` || creator.id === `supa_${session.user.id}`)) ||
+            (!creator.id && currentUsername && creatorUsername && creatorUsername === (currentUsername || '').toLowerCase().replace(/^@/, ''))
           );
 
           const canonicalOwnUsername = getCanonicalUsername(session?.user, cachedUser);
           const effectiveUsername = isOwnTrail
             ? canonicalOwnUsername
-            : (creator.id ? getCachedUserProfile(creator.id)?.username : null) || creator.username || creator.name || 'creator';
+            : (creator.username || creator.name || 'creator');
 
           const creatorCleanDisplay = effectiveUsername.replace(/^@/, '');
-          const effectiveAvatarUrl = (isOwnTrail && (cachedUser?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl))
-            ? sanitizeAvatarUrl(cachedUser?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl)
-            : creator.avatarUrl;
+          const effectiveAvatarUrl = isOwnTrail
+            ? sanitizeAvatarUrl(cachedUser?.avatarUrl || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.avatarUrl || creator.avatarUrl)
+            : sanitizeAvatarUrl(creator.avatarUrl);
 
           const isFollowed = isUserFollowing(currentUsername, creator.username) || !!creator.isFollowed;
 
@@ -2374,8 +2361,8 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
                   const dest = locationActionTrail.destination.trim();
                   setLocationActionTrail(null);
                   setIsPlaying(false);
-                  if (videoRefs.current[currentIndex]) {
-                    videoRefs.current[currentIndex]?.pause();
+                  if (videoRef.current) {
+                    videoRef.current.pause();
                   }
                   if (onStartPlanning) {
                     onStartPlanning(dest);
@@ -2473,7 +2460,7 @@ export const TrailsView: React.FC<TrailsViewProps> = ({
               <button
                 type="button"
                 disabled={isDeletingTrail}
-                onClick={handleConfirmDeleteTrail}
+                onClick={() => handleDeleteActiveTrail(trailToDelete)}
                 className="flex-1 py-3 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm shadow-lg shadow-red-950/50 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
               >
                 {isDeletingTrail ? (

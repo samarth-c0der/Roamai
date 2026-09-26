@@ -804,7 +804,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             places_count: calculatedPlacesCount,
             countries_count: calculatedCountriesCount,
             updated_at: new Date().toISOString()
-          }, { onConflict: 'id' }).then(() => {}).catch(() => {});
+          }, { onConflict: 'id' }).then(() => {}, () => {});
         }
       } catch {}
     }
@@ -863,7 +863,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             const creatorId = t.creator?.id;
             return (
               (targetUsername && creatorUsername === targetUsername) ||
-              (user?.id && creatorId === user.id)
+              (user?.id && creatorId && (creatorId === user.id || creatorId === `user_${user.id}` || creatorId === `supa_${user.id}`))
             );
           })
           .map(sanitizeTrail);

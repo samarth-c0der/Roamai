@@ -40,7 +40,8 @@ import {
   getMutualFollowers,
   followUser,
   unfollowUser,
-  isFakeMockUser
+  isFakeMockUser,
+  isSelfRel
 } from '../services/followService';
 
 
