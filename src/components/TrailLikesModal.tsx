@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, 
   Heart, 
@@ -202,12 +203,13 @@ export const TrailLikesModal: React.FC<TrailLikesModalProps> = ({
   };
 
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
   const totalLikesDisplay = isLoading ? (likesCount || 0) : likers.length;
 
-  return (
+  return createPortal(
     <div 
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in p-0 sm:p-4"
+      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in p-0 sm:p-4 select-none"
       onClick={onClose}
     >
       <div 
@@ -401,6 +403,7 @@ export const TrailLikesModal: React.FC<TrailLikesModalProps> = ({
           Tap on any traveler to view profile or connect
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

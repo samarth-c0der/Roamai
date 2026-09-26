@@ -607,6 +607,10 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     }
     setSelectedTrail(null);
     setTrailToDelete(null);
+    if (activeReelTrailId === trailId) {
+      setActiveReelTrailId(null);
+    }
+    setProfileFullTrails((prev) => prev.filter((p) => p.id !== trailId));
     setUserTrails((prev) => {
       const updated = prev.filter((t) => t.id !== trailId);
       try {
@@ -1960,9 +1964,9 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       )}
 
       {/* --- DELETE TRAIL CONFIRMATION MODAL --- */}
-      {trailToDelete && (
+      {trailToDelete && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150 select-none"
           onClick={() => {
             if (!isDeletingTrail) setTrailToDelete(null);
           }}
@@ -2007,7 +2011,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               Cancel
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* --- UPLOAD TRAIL REEL MODAL (Instagram Reels Style) --- */}
